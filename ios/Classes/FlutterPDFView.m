@@ -81,9 +81,12 @@
         if (document == nil) {
             [_channel invokeMethod:@"onError" arguments:@{@"error" : @"cannot create document: File not in PDF format or corrupted."}];
         } else {
+            //{ 4.75, 4.0, 4.75, 4.0 }
+            _pdfView.pageBreakMargins = UIEdgeInsetsMake(8, 16, 8, 16);
+            
             _pdfView.autoresizesSubviews = YES;
             _pdfView.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-            _pdfView.backgroundColor = [UIColor colorWithWhite:0.95 alpha:1.0];
+            _pdfView.backgroundColor = [UIColor colorWithRed:28/255 green:28/255 blue:29/255 alpha:1.0];
             BOOL swipeHorizontal = [args[@"swipeHorizontal"] boolValue];
             if (swipeHorizontal) {
                 _pdfView.displayDirection = kPDFDisplayDirectionHorizontal;

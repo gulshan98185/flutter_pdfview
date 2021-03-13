@@ -1,6 +1,7 @@
 package io.endigo.plugins.pdfviewflutter;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.view.View;
 import android.net.Uri;
 
@@ -18,6 +19,7 @@ import java.util.Map;
 import com.github.barteksc.pdfviewer.PDFView;
 import com.github.barteksc.pdfviewer.PDFView.Configurator;
 import com.github.barteksc.pdfviewer.listener.*;
+import com.github.barteksc.pdfviewer.scroll.DefaultScrollHandle;
 import com.github.barteksc.pdfviewer.util.Constants;
 import com.github.barteksc.pdfviewer.util.FitPolicy;
 
@@ -31,6 +33,13 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
     @SuppressWarnings("unchecked")
     FlutterPDFView(Context context, BinaryMessenger messenger, int id, Map<String, Object> params) {
         pdfView = new PDFView(context, null);
+
+        pdfView.useBestQuality(true);//This is really improve preview quality: gulshan
+        pdfView.setSaveEnabled(false);
+        pdfView.setMaxZoom(4f);
+        pdfView.setBackgroundColor(Color.BLACK);
+        pdfView.setForceDarkAllowed(false);
+
         final boolean preventLinkNavigation = getBoolean(params, "preventLinkNavigation");
 
         methodChannel = new MethodChannel(messenger, "plugins.endigo.io/pdfview_" + id);
@@ -40,27 +49,30 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
 
         Configurator config = null;
         if (params.get("filePath") != null) {
-          String filePath = (String) params.get("filePath");
-          config = pdfView.fromUri(getURI(filePath));
-        }
-        else if (params.get("pdfData") != null) {
-          byte[] data = (byte[]) params.get("pdfData");
-          config = pdfView.fromBytes(data);
+            String filePath = (String) params.get("filePath");
+            config = pdfView.fromUri(getURI(filePath));
+        } else if (params.get("pdfData") != null) {
+            byte[] data = (byte[]) params.get("pdfData");
+            config = pdfView.fromBytes(data);
         }
 
         if (config != null) {
             config
-                    .enableSwipe(getBoolean(params, "enableSwipe"))
-                    .swipeHorizontal(getBoolean(params, "swipeHorizontal"))
-                    .password(getString(params, "password"))
-                    .nightMode(getBoolean(params, "nightMode"))
-                    .autoSpacing(getBoolean(params, "autoSpacing"))
-                    .pageFling(getBoolean(params, "pageFling"))
-                    .pageSnap(getBoolean(params, "pageSnap"))
-                    .pageFitPolicy(getFitPolicy(params))
+                    //.enableSwipe(getBoolean(params, "enableSwipe"))
+                    //.swipeHorizontal(getBoolean(params, "swipeHorizontal"))
+                    //.password(getString(params, "password"))
+                    //.nightMode(getBoolean(params, "nightMode"))
+                    //.autoSpacing(getBoolean(params, "autoSpacing"))
+                    //.pageFling(getBoolean(params, "pageFling"))
+                    //.pageSnap(getBoolean(params, "pageSnap"))
+                    //.pageFitPolicy(getFitPolicy(params))
                     .enableAnnotationRendering(true)
-                    .linkHandler(linkHandler).
-                    enableAntialiasing(false)
+                    .linkHandler(linkHandler)
+                    .spacing(16)
+                    //.enableAntialiasing(false)
+                    .nightMode(false)
+                    //.scrollHandle(new CustomScrollHandle(context, false))
+                    //.scrollHandle(new DefaultScrollHandle(context, false))
                     // .fitEachPage(getBoolean(params,"fitEachPage"))
                     .onPageChange(new OnPageChangeListener() {
                         @Override
