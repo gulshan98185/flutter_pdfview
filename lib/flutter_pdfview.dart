@@ -6,6 +6,12 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+
 typedef PDFViewCreatedCallback = void Function(PDFViewController controller);
 typedef RenderCallback = void Function(int pages);
 typedef PageChangedCallback = void Function(int page, int total);
@@ -86,13 +92,52 @@ class _PDFViewState extends State<PDFView> {
   @override
   Widget build(BuildContext context) {
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return AndroidView(
+
+
+
+      // This is used in the platform side to register the view.
+      final String viewType = 'plugins.endigo.io/pdfview';
+      // Pass parameters to the platform side.
+      //final Map<String, dynamic> creationParams = <String, dynamic>{};
+
+      return PlatformViewLink(
+        viewType: viewType,
+        surfaceFactory: (BuildContext context, PlatformViewController controller) {
+          return AndroidViewSurface(
+            controller: controller,
+            gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{},
+            hitTestBehavior: PlatformViewHitTestBehavior.opaque,
+          );
+        },
+        onCreatePlatformView: (PlatformViewCreationParams params) {
+          return PlatformViewsService.initSurfaceAndroidView(
+            id: params.id,
+            viewType: viewType,
+            layoutDirection: TextDirection.ltr,
+            creationParams: _CreationParams.fromWidget(widget).toMap(),
+            creationParamsCodec: StandardMessageCodec(),
+          )
+            ..addOnPlatformViewCreatedListener((id){
+              params.onPlatformViewCreated(id);
+              _onPlatformViewCreated(id);
+            })
+            ..create();
+        },
+      );
+
+
+
+      /*return AndroidView(
         viewType: 'plugins.endigo.io/pdfview',
         onPlatformViewCreated: _onPlatformViewCreated,
         gestureRecognizers: widget.gestureRecognizers,
         creationParams: _CreationParams.fromWidget(widget).toMap(),
         creationParamsCodec: const StandardMessageCodec(),
-      );
+      );*/
+
+
+
+
     } else if (defaultTargetPlatform == TargetPlatform.iOS) {
       return UiKitView(
         viewType: 'plugins.endigo.io/pdfview',
