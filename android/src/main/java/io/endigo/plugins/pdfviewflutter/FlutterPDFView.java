@@ -41,6 +41,7 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
         if (Build.VERSION.SDK_INT >= 29) {
             pdfView.setBackgroundColor(Color.BLACK);
         }
+
         pdfView.setForceDarkAllowed(false);
 
         final boolean preventLinkNavigation = getBoolean(params, "preventLinkNavigation");
