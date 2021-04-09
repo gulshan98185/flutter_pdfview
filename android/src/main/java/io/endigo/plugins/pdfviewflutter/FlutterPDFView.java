@@ -38,10 +38,11 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
         pdfView.useBestQuality(true);//This is really improve preview quality: gulshan
         pdfView.setSaveEnabled(false);
         pdfView.setMaxZoom(4f);
+        pdfView.setBackgroundColor(Color.BLACK);
+
         if (Build.VERSION.SDK_INT >= 29) {
-            pdfView.setBackgroundColor(Color.BLACK);
+            pdfView.setForceDarkAllowed(false);
         }
-        pdfView.setForceDarkAllowed(false);
 
         final boolean preventLinkNavigation = getBoolean(params, "preventLinkNavigation");
 
