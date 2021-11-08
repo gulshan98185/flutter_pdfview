@@ -6,11 +6,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+export './pdfToImage.dart';
 
 typedef PDFViewCreatedCallback = void Function(PDFViewController controller);
 typedef RenderCallback = void Function(int pages);
@@ -44,8 +44,8 @@ class PDFView extends StatefulWidget {
     this.defaultPage = 0,
     this.fitPolicy = FitPolicy.WIDTH,
     this.preventLinkNavigation = false,
-  }) : assert(filePath != null || pdfData != null),
-       super(key: key);
+  })  : assert(filePath != null || pdfData != null),
+        super(key: key);
 
   @override
   _PDFViewState createState() => _PDFViewState();
@@ -87,14 +87,10 @@ class PDFView extends StatefulWidget {
 }
 
 class _PDFViewState extends State<PDFView> {
-  final Completer<PDFViewController> _controller =
-      Completer<PDFViewController>();
+  final Completer<PDFViewController> _controller = Completer<PDFViewController>();
   @override
   Widget build(BuildContext context) {
     if (defaultTargetPlatform == TargetPlatform.android) {
-
-
-
       // This is used in the platform side to register the view.
       final String viewType = 'plugins.endigo.io/pdfview';
       // Pass parameters to the platform side.
@@ -117,15 +113,13 @@ class _PDFViewState extends State<PDFView> {
             creationParams: _CreationParams.fromWidget(widget).toMap(),
             creationParamsCodec: StandardMessageCodec(),
           )
-            ..addOnPlatformViewCreatedListener((id){
+            ..addOnPlatformViewCreatedListener((id) {
               params.onPlatformViewCreated(id);
               _onPlatformViewCreated(id);
             })
             ..create();
         },
       );
-
-
 
       /*return AndroidView(
         viewType: 'plugins.endigo.io/pdfview',
@@ -134,9 +128,6 @@ class _PDFViewState extends State<PDFView> {
         creationParams: _CreationParams.fromWidget(widget).toMap(),
         creationParamsCodec: const StandardMessageCodec(),
       );*/
-
-
-
 
     } else if (defaultTargetPlatform == TargetPlatform.iOS) {
       return UiKitView(
@@ -147,8 +138,7 @@ class _PDFViewState extends State<PDFView> {
         creationParamsCodec: const StandardMessageCodec(),
       );
     }
-    return Text(
-        '$defaultTargetPlatform is not yet supported by the pdfview_flutter plugin');
+    return Text('$defaultTargetPlatform is not yet supported by the pdfview_flutter plugin');
   }
 
   void _onPlatformViewCreated(int id) {
@@ -162,8 +152,7 @@ class _PDFViewState extends State<PDFView> {
   @override
   void didUpdateWidget(PDFView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _controller.future.then(
-        (PDFViewController controller) => controller._updateWidget(widget));
+    _controller.future.then((PDFViewController controller) => controller._updateWidget(widget));
   }
 }
 
@@ -298,8 +287,7 @@ class PDFViewController {
         return null;
       case 'onPageChanged':
         if (_widget.onPageChanged != null) {
-          _widget.onPageChanged(
-              call.arguments['page'], call.arguments['total']);
+          _widget.onPageChanged(call.arguments['page'], call.arguments['total']);
         }
 
         return null;
@@ -322,8 +310,7 @@ class PDFViewController {
 
         return null;
     }
-    throw MissingPluginException(
-        '${call.method} was invoked but has no handler');
+    throw MissingPluginException('${call.method} was invoked but has no handler');
   }
 
   Future<int> getPageCount() async {
