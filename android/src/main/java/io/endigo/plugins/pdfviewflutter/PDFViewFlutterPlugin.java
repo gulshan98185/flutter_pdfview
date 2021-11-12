@@ -37,9 +37,23 @@ public class PDFViewFlutterPlugin implements MethodCallHandler {
         this.methodChannel.setMethodCallHandler(this);
     }
 
+//    @Override
+//    public void onMethodCall(MethodCall call, Result result) {
+//        if (call.method.equals("convert_pdf_to_image")) {
+//            new PdfToImage(context, call, result);
+//        }
+//        if (call.method.equals("getPdfThumbNail")) {
+//            new PdfThumbNail(context, call, result);
+//        } else {
+//            result.notImplemented();
+//        }
+//    }
+
     @Override
     public void onMethodCall(MethodCall call, Result result) {
-        if (call.method.equals("PdfToImage")) {
+        if (call.method.equals("getPdfThumbNail")) {
+            new PdfThumbNail(context, call, result);
+        } else if (call.method.equals("PdfToImage")) {
             new PdfToImage(context, call, result);
         } else {
             result.notImplemented();
