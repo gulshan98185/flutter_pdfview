@@ -10,8 +10,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-export './pdfToImage.dart';
-export './getPdfThumbNail.dart';
+export './pdf_to_Image.dart';
+export './get_pdf_thumbnail.dart';
 
 typedef PDFViewCreatedCallback = void Function(PDFViewController controller);
 typedef RenderCallback = void Function(int pages);
