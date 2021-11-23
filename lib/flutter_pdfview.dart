@@ -45,6 +45,7 @@ class PDFView extends StatefulWidget {
     this.defaultPage = 0,
     this.fitPolicy = FitPolicy.WIDTH,
     this.preventLinkNavigation = false,
+    this.onTap,
   })  : assert(filePath != null || pdfData != null),
         super(key: key);
 
@@ -55,6 +56,7 @@ class PDFView extends StatefulWidget {
   final PDFViewCreatedCallback onViewCreated;
   final RenderCallback onRender;
   final PageChangedCallback onPageChanged;
+  final Function onTap;
   final ErrorCallback onError;
   final PageErrorCallback onPageError;
   final LinkHandlerCallback onLinkHandler;
@@ -307,6 +309,12 @@ class PDFViewController {
       case 'onLinkHandler':
         if (_widget.onLinkHandler != null) {
           _widget.onLinkHandler(call.arguments);
+        }
+
+        return null;
+      case 'onTap':
+        if (_widget.onTap != null) {
+          _widget.onTap();
         }
 
         return null;

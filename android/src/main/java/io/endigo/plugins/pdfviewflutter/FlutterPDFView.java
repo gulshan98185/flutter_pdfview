@@ -3,6 +3,7 @@ package io.endigo.plugins.pdfviewflutter;
 import android.content.Context;
 import android.graphics.Color;
 import android.os.Build;
+import android.view.MotionEvent;
 import android.view.View;
 import android.net.Uri;
 
@@ -107,6 +108,13 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
                     Map<String, Object> args = new HashMap<>();
                     args.put("pages", pages);
                     methodChannel.invokeMethod("onRender", args);
+                }
+            }).onTap(new OnTapListener (){
+                @Override
+                public boolean onTap(MotionEvent motionEvent) {
+                    Map<String, Object> args = new HashMap<>();
+                    methodChannel.invokeMethod("onTap", args);
+                    return false;
                 }
             }).enableDoubletap(true).defaultPage(getInt(params, "defaultPage")).load();
         }
