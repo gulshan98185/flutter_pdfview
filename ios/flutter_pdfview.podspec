@@ -20,5 +20,7 @@ Pod::Spec.new do |s|
 
   s.ios.deployment_target = '9.0'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'VALID_ARCHS' => 'armv7 arm64 x86_64' }
+  s.swift_version = '4.2'
+  s.pod_target_xcconfig = { 'SWIFT_VERSION' => '4.2' }
 end
 
