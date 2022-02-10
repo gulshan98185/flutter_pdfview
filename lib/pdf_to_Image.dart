@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 
-Future<List<String>> convertPdfToImageUsingNative(
+Future<List<String>?> convertPdfToImageUsingNative(
   String pdfFilePath,
   String destFolderPath,
   String password,
