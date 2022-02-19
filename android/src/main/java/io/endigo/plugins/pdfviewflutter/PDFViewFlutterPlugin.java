@@ -3,16 +3,22 @@ package io.endigo.plugins.pdfviewflutter;
 import android.app.Activity;
 import android.app.Dialog;
 
+import androidx.annotation.NonNull;
+
+import io.flutter.embedding.engine.plugins.FlutterPlugin;
+import io.flutter.embedding.engine.plugins.activity.ActivityAware;
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.common.PluginRegistry.Registrar;
 
-public class PDFViewFlutterPlugin implements MethodCallHandler {
+public class PDFViewFlutterPlugin implements MethodCallHandler, FlutterPlugin, ActivityAware {
     /**
      * Plugin registration.
      */
+    Activity context;
     public static void registerWith(Registrar registrar) {
         registrar
                 .platformViewRegistry()
@@ -21,20 +27,20 @@ public class PDFViewFlutterPlugin implements MethodCallHandler {
 
 
         final MethodChannel channel = new MethodChannel(registrar.messenger(), "Pdf_To_Image");
-        channel.setMethodCallHandler(new PDFViewFlutterPlugin(registrar.activity(), channel));
+
+        PDFViewFlutterPlugin plugin = new PDFViewFlutterPlugin();
+        plugin.context=registrar.activity();
+        channel.setMethodCallHandler(plugin);
     }
 
 
     /**
      * Plugin registration.
      */
-    Activity context;
-    MethodChannel methodChannel;
 
-    public PDFViewFlutterPlugin(Activity activity, MethodChannel methodChannel) {
-        this.context = activity;
-        this.methodChannel = methodChannel;
-        this.methodChannel.setMethodCallHandler(this);
+
+    public PDFViewFlutterPlugin() {
+
     }
 
 //    @Override
@@ -60,4 +66,34 @@ public class PDFViewFlutterPlugin implements MethodCallHandler {
         }
     }
 
+    @Override
+    public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
+        MethodChannel channel = new MethodChannel(binding.getBinaryMessenger(), "plugins.endigo.io/pdfview");
+        channel.setMethodCallHandler(this);
+    }
+
+    @Override
+    public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
+
+    }
+
+    @Override
+    public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
+        context = binding.getActivity();
+    }
+
+    @Override
+    public void onDetachedFromActivityForConfigChanges() {
+        context=null;
+    }
+
+    @Override
+    public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
+        context = binding.getActivity();
+    }
+
+    @Override
+    public void onDetachedFromActivity() {
+        context=null;
+    }
 }
