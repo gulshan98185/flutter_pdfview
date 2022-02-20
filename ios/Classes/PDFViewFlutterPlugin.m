@@ -1,6 +1,5 @@
 #import "PDFViewFlutterPlugin.h"
 #import "FlutterPDFView.h"
-#import <flutter_pdfview/flutter_pdfview-Swift.h>
 
  
 @implementation FLTPDFViewFlutterPlugin
