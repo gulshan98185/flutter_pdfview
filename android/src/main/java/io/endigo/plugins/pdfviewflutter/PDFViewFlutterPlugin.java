@@ -1,62 +1,56 @@
 package io.endigo.plugins.pdfviewflutter;
 
 import android.app.Activity;
-import android.app.Dialog;
+import android.content.Context;
 
 import androidx.annotation.NonNull;
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
-import io.flutter.embedding.engine.plugins.activity.ActivityAware;
-import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
+import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
-import io.flutter.plugin.common.PluginRegistry.Registrar;
 
-public class PDFViewFlutterPlugin implements MethodCallHandler, FlutterPlugin, ActivityAware {
-    /**
-     * Plugin registration.
-     */
-    Activity context;
-    public static void registerWith(Registrar registrar) {
-        registrar
-                .platformViewRegistry()
-                .registerViewFactory(
-                        "plugins.endigo.io/pdfview", new PDFViewFactory(registrar.messenger()));
-
-
-        final MethodChannel channel = new MethodChannel(registrar.messenger(), "Pdf_To_Image");
-
-        PDFViewFlutterPlugin plugin = new PDFViewFlutterPlugin();
-        plugin.context=registrar.activity();
-        channel.setMethodCallHandler(plugin);
-    }
-
+public class PDFViewFlutterPlugin implements FlutterPlugin {
+    MethodChannel channel;
 
     /**
      * Plugin registration.
      */
+    @Override
+    public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
+        binding
+                .getPlatformViewRegistry()
+                .registerViewFactory("plugins.endigo.io/pdfview", new PDFViewFactory(binding.getBinaryMessenger()));
 
 
-    public PDFViewFlutterPlugin() {
-
+        setupMethodChannel(binding.getBinaryMessenger(), binding.getApplicationContext());
     }
 
-//    @Override
-//    public void onMethodCall(MethodCall call, Result result) {
-//        if (call.method.equals("convert_pdf_to_image")) {
-//            new PdfToImage(context, call, result);
-//        }
-//        if (call.method.equals("getPdfThumbNail")) {
-//            new PdfThumbNail(context, call, result);
-//        } else {
-//            result.notImplemented();
-//        }
-//    }
+    private void setupMethodChannel(BinaryMessenger messenger, Context context) {
+        channel = new MethodChannel(messenger, "Pdf_To_Image");
+        final MethodCallHandlerImpl handler =
+                new MethodCallHandlerImpl(context);
+        channel.setMethodCallHandler(handler);
+    }
 
     @Override
-    public void onMethodCall(MethodCall call, Result result) {
+    public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
+        channel.setMethodCallHandler(null);
+        channel = null;
+    }
+}
+
+class MethodCallHandlerImpl implements MethodChannel.MethodCallHandler {
+    Context context;
+
+    MethodCallHandlerImpl(Context context) {
+        this.context = context;
+    }
+
+    @Override
+    public void onMethodCall(MethodCall call, @NonNull MethodChannel.Result result) {
         if (call.method.equals("getPdfThumbNail")) {
             new PdfThumbNail(context, call, result);
         } else if (call.method.equals("PdfToImage")) {
@@ -64,36 +58,5 @@ public class PDFViewFlutterPlugin implements MethodCallHandler, FlutterPlugin, A
         } else {
             result.notImplemented();
         }
-    }
-
-    @Override
-    public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
-        MethodChannel channel = new MethodChannel(binding.getBinaryMessenger(), "plugins.endigo.io/pdfview");
-        channel.setMethodCallHandler(this);
-    }
-
-    @Override
-    public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
-
-    }
-
-    @Override
-    public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
-        context = binding.getActivity();
-    }
-
-    @Override
-    public void onDetachedFromActivityForConfigChanges() {
-        context=null;
-    }
-
-    @Override
-    public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
-        context = binding.getActivity();
-    }
-
-    @Override
-    public void onDetachedFromActivity() {
-        context=null;
     }
 }
