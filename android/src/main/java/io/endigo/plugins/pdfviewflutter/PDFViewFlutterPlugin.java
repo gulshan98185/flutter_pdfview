@@ -14,6 +14,8 @@ import io.flutter.plugin.common.MethodChannel.Result;
 
 public class PDFViewFlutterPlugin implements FlutterPlugin {
     MethodChannel channel;
+    static PdfToImageInBackground pdfToImageInBackground;
+
 
     /**
      * Plugin registration.
@@ -44,9 +46,11 @@ public class PDFViewFlutterPlugin implements FlutterPlugin {
 
 class MethodCallHandlerImpl implements MethodChannel.MethodCallHandler {
     Context context;
+//    static PdfToImageInBackground pdfToImageInBackground;
 
-    MethodCallHandlerImpl(Context context) {
+    MethodCallHandlerImpl(Context context/* PdfToImageInBackground pdfToImageInBackground*/) {
         this.context = context;
+//        MethodCallHandlerImpl.pdfToImageInBackground = pdfToImageInBackground;
     }
 
     @Override
@@ -55,6 +59,8 @@ class MethodCallHandlerImpl implements MethodChannel.MethodCallHandler {
             new PdfThumbNail(context, call, result);
         } else if (call.method.equals("PdfToImage")) {
             new PdfToImage(context, call, result);
+        } else if (call.method.equals("cancelPdfToImage")) {
+            PDFViewFlutterPlugin.pdfToImageInBackground.cancel(true);
         } else {
             result.notImplemented();
         }
