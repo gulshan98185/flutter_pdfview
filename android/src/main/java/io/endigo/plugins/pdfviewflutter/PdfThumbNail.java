@@ -1,13 +1,10 @@
 package io.endigo.plugins.pdfviewflutter;
 
-import static io.endigo.plugins.pdfviewflutter.ExtractImageInBackground.recycleBitmap;
-
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.ParcelFileDescriptor;
-import android.text.TextUtils;
 
 import com.shockwave.pdfium.PdfDocument;
 import com.shockwave.pdfium.PdfPasswordException;
@@ -15,7 +12,6 @@ import com.shockwave.pdfium.PdfiumCore;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.util.ArrayList;
 import java.util.HashMap;
 
 import io.flutter.plugin.common.MethodCall;

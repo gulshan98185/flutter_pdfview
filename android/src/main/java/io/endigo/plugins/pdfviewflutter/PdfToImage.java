@@ -23,6 +23,7 @@ public class PdfToImage {
     MethodCall call;
     public static MethodResultWrapper result;
     Context context;
+//    PdfToImageInBackground pdfToImageInBackground;
 
     PdfToImage(Context context, MethodCall call, Result result) {
         this.context = context;
@@ -42,12 +43,12 @@ public class PdfToImage {
         Uri pdfUri = Uri.fromFile(pdfFile);
 
         PdfToImageParams params = new PdfToImageParams(context, destDir, pdfUri, password, maxSize, compressValue, result);
-        ExtractImageInBackground myTask = new ExtractImageInBackground();
-        myTask.execute(params);
+        PDFViewFlutterPlugin.pdfToImageInBackground = new PdfToImageInBackground();
+        PDFViewFlutterPlugin.pdfToImageInBackground.execute(params);
     }
 }
 
-class ExtractImageInBackground extends AsyncTask<PdfToImageParams, Integer, String> {
+class PdfToImageInBackground extends AsyncTask<PdfToImageParams, Integer, String> {
 
     @Override
     protected String doInBackground(PdfToImageParams... params) {
@@ -87,6 +88,10 @@ class ExtractImageInBackground extends AsyncTask<PdfToImageParams, Integer, Stri
 
         try {
             for (int i = 0; i < pageCount; i++) {
+                if (isCancelled()) {
+                    imagePathList.clear();
+                    break;
+                }
                 fd = params.context.getContentResolver().openFileDescriptor(params.pdfUri, "r");
                 if (TextUtils.isEmpty(params.password)) {
                     pdfDocument = pdfiumCore.newDocument(fd);
@@ -109,6 +114,10 @@ class ExtractImageInBackground extends AsyncTask<PdfToImageParams, Integer, Stri
                 pdfiumCore.closeDocument(pdfDocument);
                 if (fd != null)
                     fd.close();
+                if (isCancelled()) {
+                    imagePathList.clear();
+                    i = pageCount;
+                }
             }
         } finally {
             if (fd != null)
@@ -163,6 +172,10 @@ class ExtractImageInBackground extends AsyncTask<PdfToImageParams, Integer, Stri
     // Always same signature
     @Override
     public void onPreExecute() {
+    }
+
+    @Override
+    protected void onCancelled() {
     }
 
     @Override
