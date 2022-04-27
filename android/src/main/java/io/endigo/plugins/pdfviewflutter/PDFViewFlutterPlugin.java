@@ -61,6 +61,7 @@ class MethodCallHandlerImpl implements MethodChannel.MethodCallHandler {
             new PdfToImage(context, call, result);
         } else if (call.method.equals("cancelPdfToImage")) {
             PDFViewFlutterPlugin.pdfToImageInBackground.cancel(true);
+            result.success(true);
         } else {
             result.notImplemented();
         }

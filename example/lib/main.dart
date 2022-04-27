@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:demo_app/Utility/Utility.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -57,7 +58,7 @@ class _MyAppState extends State<MyApp> {
       var request = await HttpClient().getUrl(Uri.parse(url));
       var response = await request.close();
       var bytes = await consolidateHttpClientResponseBytes(response);
-      var dir = await getApplicationDocumentsDirectory();
+      var dir = await Utility.getLocalPath;
       print("Download files");
       print("${dir.path}/$filename");
       File file = File("${dir.path}/$filename");
@@ -76,7 +77,7 @@ class _MyAppState extends State<MyApp> {
     Completer<File> completer = Completer();
 
     try {
-      var dir = await getApplicationDocumentsDirectory();
+      var dir = await Utility.getLocalPath;
       File file = File("${dir.path}/$filename");
       var data = await rootBundle.load(asset);
       var bytes = data.buffer.asUint8List();
@@ -146,8 +147,7 @@ class _MyAppState extends State<MyApp> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) =>
-                              PDFScreen(path: corruptedPathPDF),
+                          builder: (context) => PDFScreen(path: corruptedPathPDF),
                         ),
                       );
                     }
@@ -171,8 +171,7 @@ class PDFScreen extends StatefulWidget {
 }
 
 class _PDFScreenState extends State<PDFScreen> with WidgetsBindingObserver {
-  final Completer<PDFViewController> _controller =
-      Completer<PDFViewController>();
+  final Completer<PDFViewController> _controller = Completer<PDFViewController>();
   int pages = 0;
   int currentPage = 0;
   bool isReady = false;
@@ -201,8 +200,7 @@ class _PDFScreenState extends State<PDFScreen> with WidgetsBindingObserver {
             pageSnap: true,
             defaultPage: currentPage,
             fitPolicy: FitPolicy.BOTH,
-            preventLinkNavigation:
-                false, // if set to true the link is handled in flutter
+            preventLinkNavigation: false, // if set to true the link is handled in flutter
             onRender: (_pages) {
               setState(() {
                 pages = _pages;
