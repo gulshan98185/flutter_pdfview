@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:demo_app/Utility/Utility.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,7 +57,7 @@ class _MyAppState extends State<MyApp> {
       var request = await HttpClient().getUrl(Uri.parse(url));
       var response = await request.close();
       var bytes = await consolidateHttpClientResponseBytes(response);
-      var dir = await Utility.getLocalPath;
+      var dir = await getApplicationDocumentsDirectory();
       print("Download files");
       print("${dir.path}/$filename");
       File file = File("${dir.path}/$filename");
@@ -77,7 +76,7 @@ class _MyAppState extends State<MyApp> {
     Completer<File> completer = Completer();
 
     try {
-      var dir = await Utility.getLocalPath;
+      var dir = await getApplicationDocumentsDirectory();
       File file = File("${dir.path}/$filename");
       var data = await rootBundle.load(asset);
       var bytes = data.buffer.asUint8List();
