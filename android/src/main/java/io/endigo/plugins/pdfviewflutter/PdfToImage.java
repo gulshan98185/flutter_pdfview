@@ -28,11 +28,11 @@ public class PdfToImage {
     PdfToImage(Context context, MethodCall call, Result result) {
         this.context = context;
         this.call = call;
-        this.result = new MethodResultWrapper(result);
-        PdfToImage();
+        PdfToImage.result = new MethodResultWrapper(result);
+        new PdfToImage();
     }
 
-    private void PdfToImage() {
+    private PdfToImage() {
         HashMap<String, Object> arguments = (HashMap<String, Object>) call.arguments;
 
         File pdfFile = new File((String) arguments.get("pdfFilePath"));
