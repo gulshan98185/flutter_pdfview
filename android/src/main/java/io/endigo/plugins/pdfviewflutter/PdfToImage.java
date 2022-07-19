@@ -29,10 +29,10 @@ public class PdfToImage {
         this.context = context;
         this.call = call;
         PdfToImage.result = new MethodResultWrapper(result);
-        new PdfToImage();
+         pdfToImage();
     }
 
-    private PdfToImage() {
+    private void pdfToImage() {
         HashMap<String, Object> arguments = (HashMap<String, Object>) call.arguments;
 
         File pdfFile = new File((String) arguments.get("pdfFilePath"));
