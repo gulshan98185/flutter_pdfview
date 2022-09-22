@@ -100,7 +100,7 @@ class _MyAppState extends State<MyApp> {
           builder: (BuildContext context) {
             return Column(
               children: <Widget>[
-                RaisedButton(
+                ElevatedButton(
                   child: Text("Open PDF"),
                   onPressed: () {
                     if (pathPDF != null || pathPDF.isNotEmpty) {
@@ -113,7 +113,7 @@ class _MyAppState extends State<MyApp> {
                     }
                   },
                 ),
-                RaisedButton(
+                ElevatedButton(
                   child: Text("Open Landscape PDF"),
                   onPressed: () {
                     if (landscapePathPdf != null || landscapePathPdf.isNotEmpty) {
@@ -126,7 +126,7 @@ class _MyAppState extends State<MyApp> {
                     }
                   },
                 ),
-                RaisedButton(
+                ElevatedButton(
                   child: Text("Remote PDF"),
                   onPressed: () {
                     if (remotePDFpath != null || remotePDFpath.isNotEmpty) {
@@ -139,7 +139,7 @@ class _MyAppState extends State<MyApp> {
                     }
                   },
                 ),
-                RaisedButton(
+                ElevatedButton(
                   child: Text("Open Corrupted PDF"),
                   onPressed: () {
                     if (pathPDF != null) {
