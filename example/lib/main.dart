@@ -164,7 +164,7 @@ class _MyAppState extends State<MyApp> {
 class PDFScreen extends StatefulWidget {
   final String path;
 
-  PDFScreen({Key key, this.path}) : super(key: key);
+  PDFScreen({Key? key, required this.path}) : super(key: key);
 
   _PDFScreenState createState() => _PDFScreenState();
 }
@@ -202,7 +202,7 @@ class _PDFScreenState extends State<PDFScreen> with WidgetsBindingObserver {
             preventLinkNavigation: false, // if set to true the link is handled in flutter
             onRender: (_pages) {
               setState(() {
-                pages = _pages;
+                pages = _pages!;
                 isReady = true;
               });
             },
@@ -221,13 +221,13 @@ class _PDFScreenState extends State<PDFScreen> with WidgetsBindingObserver {
             onViewCreated: (PDFViewController pdfViewController) {
               _controller.complete(pdfViewController);
             },
-            onLinkHandler: (String uri) {
+            onLinkHandler: (String? uri) {
               print('goto uri: $uri');
             },
-            onPageChanged: (int page, int total) {
+            onPageChanged: (int? page, int? total) {
               print('page change: $page/$total');
               setState(() {
-                currentPage = page;
+                currentPage = page!;
               });
             },
           ),
@@ -249,7 +249,7 @@ class _PDFScreenState extends State<PDFScreen> with WidgetsBindingObserver {
             return FloatingActionButton.extended(
               label: Text("Go to ${pages ~/ 2}"),
               onPressed: () async {
-                await snapshot.data.setPage(pages ~/ 2);
+                await snapshot.data!.setPage(pages ~/ 2);
               },
             );
           }
