@@ -51,6 +51,12 @@
         _channel = [FlutterMethodChannel methodChannelWithName:channelName binaryMessenger:messenger];
         
         _pdfView = [[PDFView alloc] initWithFrame: [[UIScreen mainScreen] bounds]];
+
+        UITapGestureRecognizer *tapRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
+        tapRecognizer.numberOfTapsRequired = 1;
+        tapRecognizer.numberOfTouchesRequired = 1;
+        [_pdfView addGestureRecognizer:tapRecognizer];
+
         __weak __typeof__(self) weakSelf = self;
         _pdfView.delegate = self;
         
@@ -196,6 +202,10 @@
         [[UIApplication sharedApplication] openURL:url];
     }
     [_channel invokeMethod:@"onLinkHandler" arguments:url.absoluteString];
+}
+
+- (void)handleTap:(UITapGestureRecognizer *)recognizer {
+    [_channel invokeMethod:@"onTap" arguments:@{}];
 }
 
 @end
