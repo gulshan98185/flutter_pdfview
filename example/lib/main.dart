@@ -4,8 +4,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:path_provider/path_provider.dart';
 
 void main() => runApp(MyApp());
 
@@ -100,10 +100,10 @@ class _MyAppState extends State<MyApp> {
           builder: (BuildContext context) {
             return Column(
               children: <Widget>[
-                ElevatedButton(
+                TextButton(
                   child: Text("Open PDF"),
                   onPressed: () {
-                    if (pathPDF != null || pathPDF.isNotEmpty) {
+                    if (pathPDF.isNotEmpty) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -113,10 +113,10 @@ class _MyAppState extends State<MyApp> {
                     }
                   },
                 ),
-                ElevatedButton(
+                TextButton(
                   child: Text("Open Landscape PDF"),
                   onPressed: () {
-                    if (landscapePathPdf != null || landscapePathPdf.isNotEmpty) {
+                    if (landscapePathPdf.isNotEmpty) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -126,10 +126,10 @@ class _MyAppState extends State<MyApp> {
                     }
                   },
                 ),
-                ElevatedButton(
+                TextButton(
                   child: Text("Remote PDF"),
                   onPressed: () {
-                    if (remotePDFpath != null || remotePDFpath.isNotEmpty) {
+                    if (remotePDFpath.isNotEmpty) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -139,10 +139,10 @@ class _MyAppState extends State<MyApp> {
                     }
                   },
                 ),
-                ElevatedButton(
+                TextButton(
                   child: Text("Open Corrupted PDF"),
                   onPressed: () {
-                    if (pathPDF != null) {
+                    if (pathPDF.isNotEmpty) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -162,17 +162,17 @@ class _MyAppState extends State<MyApp> {
 }
 
 class PDFScreen extends StatefulWidget {
-  final String path;
+  final String? path;
 
-  PDFScreen({Key? key, required this.path}) : super(key: key);
+  PDFScreen({Key? key, this.path}) : super(key: key);
 
   _PDFScreenState createState() => _PDFScreenState();
 }
 
 class _PDFScreenState extends State<PDFScreen> with WidgetsBindingObserver {
   final Completer<PDFViewController> _controller = Completer<PDFViewController>();
-  int pages = 0;
-  int currentPage = 0;
+  int? pages = 0;
+  int? currentPage = 0;
   bool isReady = false;
   String errorMessage = '';
 
@@ -197,12 +197,14 @@ class _PDFScreenState extends State<PDFScreen> with WidgetsBindingObserver {
             autoSpacing: false,
             pageFling: true,
             pageSnap: true,
-            defaultPage: currentPage,
+            defaultPage: currentPage!,
             fitPolicy: FitPolicy.BOTH,
-            preventLinkNavigation: false, // if set to true the link is handled in flutter
+            preventLinkNavigation: false,
+            // if set to true the link is handled in flutter
+            backgroundColor: Color(0xFFFEF7FF),
             onRender: (_pages) {
               setState(() {
-                pages = _pages!;
+                pages = _pages;
                 isReady = true;
               });
             },
@@ -225,9 +227,9 @@ class _PDFScreenState extends State<PDFScreen> with WidgetsBindingObserver {
               print('goto uri: $uri');
             },
             onPageChanged: (int? page, int? total) {
-              print('page change: $page/$total');
+              print('page change: ${page ?? 0 + 1}/$total');
               setState(() {
-                currentPage = page!;
+                currentPage = page;
               });
             },
           ),
@@ -247,9 +249,9 @@ class _PDFScreenState extends State<PDFScreen> with WidgetsBindingObserver {
         builder: (context, AsyncSnapshot<PDFViewController> snapshot) {
           if (snapshot.hasData) {
             return FloatingActionButton.extended(
-              label: Text("Go to ${pages ~/ 2}"),
+              label: Text("Go to ${pages! ~/ 2}"),
               onPressed: () async {
-                await snapshot.data!.setPage(pages ~/ 2);
+                await snapshot.data!.setPage(pages! ~/ 2);
               },
             );
           }
