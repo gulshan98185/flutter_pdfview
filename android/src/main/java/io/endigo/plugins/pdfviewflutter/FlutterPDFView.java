@@ -61,6 +61,12 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
             config = pdfView.fromBytes(data);
         }
 
+        Object backgroundColor = params.get("backgroundColor");
+        if (backgroundColor != null) {
+            int color = ((Number) backgroundColor).intValue();
+            pdfView.setBackgroundColor(color);
+        }
+
         if (config != null) {
             config
                     //.enableSwipe(getBoolean(params, "enableSwipe"))
@@ -88,35 +94,35 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
                             methodChannel.invokeMethod("onPageChanged", args);
                         }
                     }).onError(new OnErrorListener() {
-                @Override
-                public void onError(Throwable t) {
-                    Map<String, Object> args = new HashMap<>();
-                    args.put("error", t.toString());
-                    methodChannel.invokeMethod("onError", args);
-                }
-            }).onPageError(new OnPageErrorListener() {
-                @Override
-                public void onPageError(int page, Throwable t) {
-                    Map<String, Object> args = new HashMap<>();
-                    args.put("page", page);
-                    args.put("error", t.toString());
-                    methodChannel.invokeMethod("onPageError", args);
-                }
-            }).onRender(new OnRenderListener() {
-                @Override
-                public void onInitiallyRendered(int pages) {
-                    Map<String, Object> args = new HashMap<>();
-                    args.put("pages", pages);
-                    methodChannel.invokeMethod("onRender", args);
-                }
-            }).onTap(new OnTapListener (){
-                @Override
-                public boolean onTap(MotionEvent motionEvent) {
-                    Map<String, Object> args = new HashMap<>();
-                    methodChannel.invokeMethod("onTap", args);
-                    return false;
-                }
-            }).enableDoubletap(true).defaultPage(getInt(params, "defaultPage")).load();
+                        @Override
+                        public void onError(Throwable t) {
+                            Map<String, Object> args = new HashMap<>();
+                            args.put("error", t.toString());
+                            methodChannel.invokeMethod("onError", args);
+                        }
+                    }).onPageError(new OnPageErrorListener() {
+                        @Override
+                        public void onPageError(int page, Throwable t) {
+                            Map<String, Object> args = new HashMap<>();
+                            args.put("page", page);
+                            args.put("error", t.toString());
+                            methodChannel.invokeMethod("onPageError", args);
+                        }
+                    }).onRender(new OnRenderListener() {
+                        @Override
+                        public void onInitiallyRendered(int pages) {
+                            Map<String, Object> args = new HashMap<>();
+                            args.put("pages", pages);
+                            methodChannel.invokeMethod("onRender", args);
+                        }
+                    }).onTap(new OnTapListener() {
+                        @Override
+                        public boolean onTap(MotionEvent motionEvent) {
+                            Map<String, Object> args = new HashMap<>();
+                            methodChannel.invokeMethod("onTap", args);
+                            return false;
+                        }
+                    }).enableDoubletap(true).defaultPage(getInt(params, "defaultPage")).load();
         }
     }
 
