@@ -127,7 +127,17 @@ class PdfToImageInBackground extends AsyncTask<PdfToImageParams, Integer, String
     }
 
     public String saveBitmap(Bitmap bitmap, int index, File destDir, int compressValue) {
-        File dest = new File(destDir, String.valueOf(index) + ".jpeg");
+        String baseName = String.valueOf(index);
+        File dest = new File(destDir, baseName + ".jpeg");
+        int counter = 1;
+
+        // Loop only if the file exists, to find a unique name.
+        while (dest.exists()) {
+            String newName = baseName + "(" + counter + ").jpeg";
+            dest = new File(destDir, newName);
+            counter++;
+        }
+
         FileOutputStream out = null;
         try {
             out = new FileOutputStream(dest);
