@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -15,6 +16,11 @@ typedef PageChangedCallback = void Function(int? page, int? total);
 typedef ErrorCallback = void Function(dynamic error);
 typedef PageErrorCallback = void Function(int? page, dynamic error);
 typedef LinkHandlerCallback = void Function(String? uri);
+
+// NEW: zoom callbacks (absolute zoom value on update)
+typedef ZoomStartCallback = void Function();
+typedef ZoomUpdateCallback = void Function(double zoom);
+typedef ZoomEndCallback = void Function();
 
 enum FitPolicy { WIDTH, HEIGHT, BOTH }
 
@@ -43,102 +49,142 @@ class PDFView extends StatefulWidget {
     this.preventLinkNavigation = false,
     this.backgroundColor,
     this.onTap,
+
+    // NEW: zoom events
+    this.onZoomStart,
+    this.onZoomUpdate, // absolute zoom estimate, 1.0 at rest
+    this.onZoomEnd,
+    this.zoomGestureThreshold = 1.01, // 1% delta to start zoom
   })  : assert(filePath != null || pdfData != null),
         super(key: key);
 
   @override
   _PDFViewState createState() => _PDFViewState();
 
-  /// If not null invoked once the PDFView is created.
+  // Core callbacks
   final PDFViewCreatedCallback? onViewCreated;
-
-  /// Return PDF page count as a parameter
   final RenderCallback? onRender;
-
-  /// Return current page and page count as a parameter
   final PageChangedCallback? onPageChanged;
-
   final Function? onTap;
-
-  /// Invokes on error that handled on native code
   final ErrorCallback? onError;
-
-  /// Invokes on page cannot be rendered or something happens
   final PageErrorCallback? onPageError;
-
-  /// Used with preventLinkNavigation=true. It's helpful to customize link navigation
   final LinkHandlerCallback? onLinkHandler;
 
-  /// Which gestures should be consumed by the pdf view.
-  ///
-  /// It is possible for other gesture recognizers to be competing with the pdf view on pointer
-  /// events, e.g if the pdf view is inside a [ListView] the [ListView] will want to handle
-  /// vertical drags. The pdf view will claim gestures that are recognized by any of the
-  /// recognizers on this list.
-  ///
-  /// When this set is empty or null, the pdf view will only handle pointer events for gestures that
-  /// were not claimed by any other gesture recognizer.
+  // Gestures
   final Set<Factory<OneSequenceGestureRecognizer>>? gestureRecognizers;
 
-  /// The initial URL to load.
+  // Source
   final String? filePath;
-
-  /// The binary data of a PDF document
   final Uint8List? pdfData;
 
-  /// Indicates whether or not the user can swipe to change pages in the PDF document. If set to true, swiping is enabled.
+  // Settings
   final bool enableSwipe;
-
-  /// Indicates whether or not the user can swipe horizontally to change pages in the PDF document. If set to true, horizontal swiping is enabled.
   final bool swipeHorizontal;
-
-  /// Represents the password for a password-protected PDF document. It can be nullable
   final String? password;
-
-  /// Indicates whether or not the PDF viewer is in night mode. If set to true, the viewer is in night mode
   final bool nightMode;
-
-  /// Indicates whether or not the PDF viewer automatically adds spacing between pages. If set to true, spacing is added.
   final bool autoSpacing;
-
-  /// Indicates whether or not the user can "fling" pages in the PDF document. If set to true, page flinging is enabled.
   final bool pageFling;
-
-  /// Indicates whether or not the viewer snaps to a page after the user has scrolled to it. If set to true, snapping is enabled.
   final bool pageSnap;
-
-  /// Represents the default page to display when the PDF document is loaded.
   final int defaultPage;
-
-  /// FitPolicy that determines how the PDF pages are fit to the screen. The FitPolicy enum can take on the following values:
-  /// - FitPolicy.WIDTH: The PDF pages are scaled to fit the width of the screen.
-  /// - FitPolicy.HEIGHT: The PDF pages are scaled to fit the height of the screen.
-  /// - FitPolicy.BOTH: The PDF pages are scaled to fit both the width and height of the screen.
   final FitPolicy fitPolicy;
-
-  /// fitEachPage
   @Deprecated("will be removed next version")
   final bool fitEachPage;
-
-  /// Indicates whether or not clicking on links in the PDF document will open the link in a new page. If set to true, link navigation is prevented.
   final bool preventLinkNavigation;
-
-  /// Use to change the background color. ex : "#FF0000" => red
   final Color? backgroundColor;
+
+  // NEW: zoom callbacks
+  final ZoomStartCallback? onZoomStart;
+  final ZoomUpdateCallback? onZoomUpdate; // absolute zoom value
+  final ZoomEndCallback? onZoomEnd;
+  final double zoomGestureThreshold;
 }
 
 class _PDFViewState extends State<PDFView> {
   final Completer<PDFViewController> _controller = Completer<PDFViewController>();
+  static const double _normBase = 1.0; // "fit"
+  static const double _normMax  = 4.0; // treat 4x as 1.0 in normalized scale
+
+
+  // ====== Pinch detection overlay (pure Flutter; doesn't block the platform view) ======
+  final Map<int, Offset> _pointers = <int, Offset>{};
+  double? _pinchStartDistance;
+  bool _pinchActive = false;
+
+  // Absolute zoom estimate (since the native viewer doesn't expose zoom)
+  double _estimatedZoom = 1.0;      // running estimate; 1.0 = fit
+  double _zoomAtPinchStart = 1.0;   // baseline when second finger touches
+  static const double _zoomEps = 0.02; // ±2% tolerance considered "at 1.0"
+
+  double _dist(Offset a, Offset b) => (a - b).distance;
+
+  double _toUnit(double z) {
+    // distance from "fit" divided by range, absolute value, clamped 0..1
+    final v = ((z - _normBase).abs()) / (_normMax - _normBase);
+    return v.clamp(0.0, 1.0);
+  }
+
+  void _maybeHandlePinchUpdate() {
+    if (_pointers.length < 2) return;
+
+    // first two pointers
+    final it = _pointers.values.iterator;
+    it..moveNext();
+    final p1 = it.current;
+    it..moveNext();
+    final p2 = it.current;
+
+    final current = _dist(p1, p2);
+    _pinchStartDistance ??= current;
+    final base = _pinchStartDistance!;
+    if (base <= 0.001) return;
+
+    final scaleFromStart = current / base;
+
+    // Trigger start once threshold exceeded
+    final over = scaleFromStart > widget.zoomGestureThreshold ||
+        scaleFromStart < (1.0 / widget.zoomGestureThreshold);
+
+    if (!_pinchActive && over) {
+      _pinchActive = true;
+      _zoomAtPinchStart = _estimatedZoom; // capture baseline at pinch start
+      widget.onZoomStart?.call();
+    }
+
+    if (_pinchActive) {
+      // absolute zoom estimate
+      final estimatedNow = _zoomAtPinchStart * scaleFromStart;
+      _estimatedZoom = estimatedNow;
+      widget.onZoomUpdate?.call(_estimatedZoom);
+    }
+  }
+
+  void _endPinchIfNeeded() {
+    if (_pointers.length < 2) {
+      if (_pinchActive) {
+        _pinchActive = false;
+
+        // Keep last zoom instead of letting it collapse
+        if ((_estimatedZoom - 1.0).abs() <= _zoomEps) {
+          _estimatedZoom = 1.0; // snap to fit
+        }
+
+        widget.onZoomEnd?.call();
+      }
+
+      // DO NOT reset zoom to 0
+      _pinchStartDistance = null;
+    }
+  }
+// =================================================================
 
   @override
   Widget build(BuildContext context) {
+    Widget platformView;
+
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return PlatformViewLink(
+      platformView = PlatformViewLink(
         viewType: 'plugins.endigo.io/pdfview',
-        surfaceFactory: (
-          BuildContext context,
-          PlatformViewController controller,
-        ) {
+        surfaceFactory: (BuildContext context, PlatformViewController controller) {
           return AndroidViewSurface(
             controller: controller as AndroidViewController,
             gestureRecognizers: widget.gestureRecognizers ?? const <Factory<OneSequenceGestureRecognizer>>{},
@@ -161,23 +207,54 @@ class _PDFViewState extends State<PDFView> {
         },
       );
     } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-      return UiKitView(
+      platformView = UiKitView(
         viewType: 'plugins.endigo.io/pdfview',
         onPlatformViewCreated: _onPlatformViewCreated,
         gestureRecognizers: widget.gestureRecognizers,
         creationParams: _CreationParams.fromWidget(widget).toMap(),
         creationParamsCodec: const StandardMessageCodec(),
       );
+    } else {
+      platformView = Text('$defaultTargetPlatform is not yet supported by the pdfview_flutter plugin');
     }
-    return Text('$defaultTargetPlatform is not yet supported by the pdfview_flutter plugin');
+
+    // Wrap with a transparent Listener to observe two-finger pinch without intercepting it.
+    return Stack(
+      children: [
+        platformView,
+        Positioned.fill(
+          child: Listener(
+            behavior: HitTestBehavior.translucent, // don't block the native view
+            onPointerDown: (e) {
+              _pointers[e.pointer] = e.position;
+              if (_pointers.length == 2) {
+                _pinchStartDistance = null; // reset baseline when second finger touches
+              }
+            },
+            onPointerMove: (e) {
+              if (_pointers.containsKey(e.pointer)) {
+                _pointers[e.pointer] = e.position;
+                _maybeHandlePinchUpdate();
+              }
+            },
+            onPointerUp: (e) {
+              _pointers.remove(e.pointer);
+              _endPinchIfNeeded();
+            },
+            onPointerCancel: (e) {
+              _pointers.remove(e.pointer);
+              _endPinchIfNeeded();
+            },
+          ),
+        ),
+      ],
+    );
   }
 
   void _onPlatformViewCreated(int id) {
     final PDFViewController controller = PDFViewController._(id, widget);
     _controller.complete(controller);
-    if (widget.onViewCreated != null) {
-      widget.onViewCreated!(controller);
-    }
+    widget.onViewCreated?.call(controller);
   }
 
   @override
@@ -210,17 +287,14 @@ class _CreationParams {
 
   final String? filePath;
   final Uint8List? pdfData;
-
   final _PDFViewSettings? settings;
 
   Map<String, dynamic> toMap() {
-    Map<String, dynamic> params = {
+    final params = <String, dynamic>{
       'filePath': filePath,
       'pdfData': pdfData,
     };
-
     params.addAll(settings!.toMap());
-
     return params;
   }
 }
@@ -266,7 +340,6 @@ class _PDFViewSettings {
   final int? defaultPage;
   final FitPolicy? fitPolicy;
   final bool? preventLinkNavigation;
-
   final Color? backgroundColor;
 
   Map<String, dynamic> toMap() {
@@ -287,15 +360,9 @@ class _PDFViewSettings {
 
   Map<String, dynamic> updatesMap(_PDFViewSettings newSettings) {
     final Map<String, dynamic> updates = <String, dynamic>{};
-    if (enableSwipe != newSettings.enableSwipe) {
-      updates['enableSwipe'] = newSettings.enableSwipe;
-    }
-    if (pageFling != newSettings.pageFling) {
-      updates['pageFling'] = newSettings.pageFling;
-    }
-    if (pageSnap != newSettings.pageSnap) {
-      updates['pageSnap'] = newSettings.pageSnap;
-    }
+    if (enableSwipe != newSettings.enableSwipe) updates['enableSwipe'] = newSettings.enableSwipe;
+    if (pageFling != newSettings.pageFling) updates['pageFling'] = newSettings.pageFling;
+    if (pageSnap != newSettings.pageSnap) updates['pageSnap'] = newSettings.pageSnap;
     if (preventLinkNavigation != newSettings.preventLinkNavigation) {
       updates['preventLinkNavigation'] = newSettings.preventLinkNavigation;
     }
@@ -305,9 +372,9 @@ class _PDFViewSettings {
 
 class PDFViewController {
   PDFViewController._(
-    int id,
-    PDFView widget,
-  )   : _channel = MethodChannel('plugins.endigo.io/pdfview_$id'),
+      int id,
+      PDFView widget,
+      )   : _channel = MethodChannel('plugins.endigo.io/pdfview_$id'),
         _widget = widget {
     _settings = _PDFViewSettings.fromWidget(widget);
     _channel.setMethodCallHandler(_onMethodCall);
@@ -319,9 +386,7 @@ class PDFViewController {
   }
 
   MethodChannel _channel;
-
   late _PDFViewSettings _settings;
-
   PDFView? _widget;
 
   Future<bool?> _onMethodCall(MethodCall call) async {
@@ -333,10 +398,7 @@ class PDFViewController {
         widget.onRender?.call(call.arguments['pages']);
         return null;
       case 'onPageChanged':
-        widget.onPageChanged?.call(
-          call.arguments['page'],
-          call.arguments['total'],
-        );
+        widget.onPageChanged?.call(call.arguments['page'], call.arguments['total']);
         return null;
       case 'onError':
         widget.onError?.call(call.arguments['error']);
@@ -354,21 +416,11 @@ class PDFViewController {
     throw MissingPluginException('${call.method} was invoked but has no handler');
   }
 
-  Future<int?> getPageCount() async {
-    final int? pageCount = await _channel.invokeMethod('pageCount');
-    return pageCount;
-  }
-
-  Future<int?> getCurrentPage() async {
-    final int? currentPage = await _channel.invokeMethod('currentPage');
-    return currentPage;
-  }
+  Future<int?> getPageCount() async => _channel.invokeMethod<int>('pageCount');
+  Future<int?> getCurrentPage() async => _channel.invokeMethod<int>('currentPage');
 
   Future<bool?> setPage(int page) async {
-    final bool? isSet = await _channel.invokeMethod('setPage', <String, dynamic>{
-      'page': page,
-    });
-    return isSet;
+    return _channel.invokeMethod<bool>('setPage', <String, dynamic>{'page': page});
   }
 
   Future<void> _updateWidget(PDFView widget) async {
@@ -377,11 +429,9 @@ class PDFViewController {
   }
 
   Future<void> _updateSettings(_PDFViewSettings setting) async {
-    final Map<String, dynamic> updateMap = _settings.updatesMap(setting);
-    if (updateMap.isEmpty) {
-      return null;
-    }
+    final updates = _settings.updatesMap(setting);
+    if (updates.isEmpty) return;
     _settings = setting;
-    return _channel.invokeMethod('updateSettings', updateMap);
+    await _channel.invokeMethod('updateSettings', updates);
   }
 }
