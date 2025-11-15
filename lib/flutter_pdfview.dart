@@ -1,3 +1,4 @@
+// pdf_view.dart
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -55,6 +56,12 @@ class PDFView extends StatefulWidget {
     this.onZoomUpdate, // absolute zoom estimate, 1.0 at rest
     this.onZoomEnd,
     this.zoomGestureThreshold = 1.01, // 1% delta to start zoom
+
+    // NEW: initial zoom to apply when PDF is rendered
+    this.initialZoom,
+
+    // NEW: whether setZoom is allowed (Dart + native will honor)
+    this.enableSetZoom = true,
   })  : assert(filePath != null || pdfData != null),
         super(key: key);
 
@@ -97,13 +104,19 @@ class PDFView extends StatefulWidget {
   final ZoomUpdateCallback? onZoomUpdate; // absolute zoom value
   final ZoomEndCallback? onZoomEnd;
   final double zoomGestureThreshold;
+
+  // NEW: initial zoom to apply after render. 1.0 == fit.
+  // If null, no zoom is forced.
+  final double? initialZoom;
+
+  // NEW: enable/disable setZoom behavior
+  final bool enableSetZoom;
 }
 
 class _PDFViewState extends State<PDFView> {
   final Completer<PDFViewController> _controller = Completer<PDFViewController>();
   static const double _normBase = 1.0; // "fit"
-  static const double _normMax  = 4.0; // treat 4x as 1.0 in normalized scale
-
+  static const double _normMax = 4.0; // treat 4x as 1.0 in normalized scale
 
   // ====== Pinch detection overlay (pure Flutter; doesn't block the platform view) ======
   final Map<int, Offset> _pointers = <int, Offset>{};
@@ -111,8 +124,8 @@ class _PDFViewState extends State<PDFView> {
   bool _pinchActive = false;
 
   // Absolute zoom estimate (since the native viewer doesn't expose zoom)
-  double _estimatedZoom = 1.0;      // running estimate; 1.0 = fit
-  double _zoomAtPinchStart = 1.0;   // baseline when second finger touches
+  double _estimatedZoom = 1.0; // running estimate; 1.0 = fit
+  double _zoomAtPinchStart = 1.0; // baseline when second finger touches
   static const double _zoomEps = 0.02; // ±2% tolerance considered "at 1.0"
 
   double _dist(Offset a, Offset b) => (a - b).distance;
@@ -175,7 +188,7 @@ class _PDFViewState extends State<PDFView> {
       _pinchStartDistance = null;
     }
   }
-// =================================================================
+  // =================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -255,6 +268,8 @@ class _PDFViewState extends State<PDFView> {
     final PDFViewController controller = PDFViewController._(id, widget);
     _controller.complete(controller);
     widget.onViewCreated?.call(controller);
+    // No direct call to setZoom here — we rely on the native 'onRender' event to
+    // apply initialZoom (see PDFViewController._onMethodCall below).
   }
 
   @override
@@ -275,6 +290,7 @@ class _CreationParams {
     this.filePath,
     this.pdfData,
     this.settings,
+    this.enableSetZoom,
   });
 
   static _CreationParams fromWidget(PDFView widget) {
@@ -282,17 +298,20 @@ class _CreationParams {
       filePath: widget.filePath,
       pdfData: widget.pdfData,
       settings: _PDFViewSettings.fromWidget(widget),
+      enableSetZoom: widget.enableSetZoom,
     );
   }
 
   final String? filePath;
   final Uint8List? pdfData;
   final _PDFViewSettings? settings;
+  final bool? enableSetZoom;
 
   Map<String, dynamic> toMap() {
     final params = <String, dynamic>{
       'filePath': filePath,
       'pdfData': pdfData,
+      'enableSetZoom': enableSetZoom,
     };
     params.addAll(settings!.toMap());
     return params;
@@ -312,6 +331,7 @@ class _PDFViewSettings {
     this.fitPolicy,
     this.preventLinkNavigation,
     this.backgroundColor,
+    this.enableSetZoom,
   });
 
   static _PDFViewSettings fromWidget(PDFView widget) {
@@ -327,6 +347,7 @@ class _PDFViewSettings {
       fitPolicy: widget.fitPolicy,
       preventLinkNavigation: widget.preventLinkNavigation,
       backgroundColor: widget.backgroundColor,
+      enableSetZoom: widget.enableSetZoom,
     );
   }
 
@@ -342,6 +363,9 @@ class _PDFViewSettings {
   final bool? preventLinkNavigation;
   final Color? backgroundColor;
 
+  // NEW: include enableSetZoom so we can update it at runtime
+  final bool? enableSetZoom;
+
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'enableSwipe': enableSwipe,
@@ -355,6 +379,7 @@ class _PDFViewSettings {
       'fitPolicy': fitPolicy.toString(),
       'preventLinkNavigation': preventLinkNavigation,
       'backgroundColor': backgroundColor?.value,
+      'enableSetZoom': enableSetZoom,
     };
   }
 
@@ -366,6 +391,7 @@ class _PDFViewSettings {
     if (preventLinkNavigation != newSettings.preventLinkNavigation) {
       updates['preventLinkNavigation'] = newSettings.preventLinkNavigation;
     }
+    if (enableSetZoom != newSettings.enableSetZoom) updates['enableSetZoom'] = newSettings.enableSetZoom;
     return updates;
   }
 }
@@ -389,14 +415,34 @@ class PDFViewController {
   late _PDFViewSettings _settings;
   PDFView? _widget;
 
+  /// Handle incoming platform method calls from native
   Future<bool?> _onMethodCall(MethodCall call) async {
     final widget = _widget;
     if (widget == null) return null;
 
     switch (call.method) {
       case 'onRender':
+      // Native view finished rendering pages. First, forward to user callback:
         widget.onRender?.call(call.arguments['pages']);
+
+        // THEN: if widget.initialZoom is provided and setZoom is enabled, apply it now (only once).
+        // This ensures native page metrics are available so native code can compute
+        // the correct "fitScale".
+        final double? initialZoom = widget.initialZoom;
+        if (initialZoom != null && widget.enableSetZoom) {
+          // attempt to set zoom on native viewer
+          try {
+            await setZoom(initialZoom);
+          } catch (e) {
+            // swallow — if native can't set zoom now, native side can also apply it
+            // when ready; at least we attempted.
+          }
+          // Null out initialZoom in the widget isn't possible — user may rebuild widget.
+          // If you want to only apply once, pass a distinct "applyInitialZoomOnce" flag
+          // via creationParams or store state in your app-level code.
+        }
         return null;
+
       case 'onPageChanged':
         widget.onPageChanged?.call(call.arguments['page'], call.arguments['total']);
         return null;
@@ -421,6 +467,15 @@ class PDFViewController {
 
   Future<bool?> setPage(int page) async {
     return _channel.invokeMethod<bool>('setPage', <String, dynamic>{'page': page});
+  }
+
+  /// New: set absolute zoom. Convention: `zoom = 1.0` is "fit".
+  /// Native side should interpret this as scaleFactor = fitScale * zoom.
+  Future<void> setZoom(double zoom) async {
+    assert(zoom > 0.0);
+    // Respect widget-level flag: do not call native setZoom if disabled
+    if (_widget != null && !_widget!.enableSetZoom) return;
+    await _channel.invokeMethod('setZoom', <String, dynamic>{'zoom': zoom});
   }
 
   Future<void> _updateWidget(PDFView widget) async {
