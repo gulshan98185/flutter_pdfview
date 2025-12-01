@@ -128,6 +128,10 @@ class _PDFViewState extends State<PDFView> {
   double _zoomAtPinchStart = 1.0; // baseline when second finger touches
   static const double _zoomEps = 0.02; // ±2% tolerance considered "at 1.0"
 
+  // Defensive thresholds for normalization
+  static const double _minReasonableZoom = 0.2; // anything below treated as noise/fit
+  static const double _maxReasonableZoom = 10.0; // clamp upper bound
+
   double _dist(Offset a, Offset b) => (a - b).distance;
 
   double _toUnit(double z) {
@@ -147,6 +151,7 @@ class _PDFViewState extends State<PDFView> {
     final p2 = it.current;
 
     final current = _dist(p1, p2);
+    // if first time with two pointers, set baseline distance
     _pinchStartDistance ??= current;
     final base = _pinchStartDistance!;
     if (base <= 0.001) return;
@@ -159,15 +164,40 @@ class _PDFViewState extends State<PDFView> {
 
     if (!_pinchActive && over) {
       _pinchActive = true;
-      _zoomAtPinchStart = _estimatedZoom; // capture baseline at pinch start
+
+      // Use a sane baseline: prefer current estimate if reasonable, otherwise default to 1.0
+      _zoomAtPinchStart = (_estimatedZoom.isFinite && _estimatedZoom >= _minReasonableZoom)
+          ? _estimatedZoom
+          : _normBase;
+
       widget.onZoomStart?.call();
+      debugPrint('🔹 onZoomStart (pinch) baseline=$_zoomAtPinchStart pinchBase=$base');
     }
 
     if (_pinchActive) {
-      // absolute zoom estimate
-      final estimatedNow = _zoomAtPinchStart * scaleFromStart;
-      _estimatedZoom = estimatedNow;
+      // absolute zoom estimate before normalization
+      double estimatedNow = _zoomAtPinchStart * scaleFromStart;
+
+      // Defensive normalization:
+      if (estimatedNow.isNaN || estimatedNow.isInfinite) {
+        estimatedNow = _normBase;
+      }
+      // If extremely small, treat as fit (noise)
+      if (estimatedNow < _minReasonableZoom) {
+        debugPrint('⚠️ pinch estimate very small ($estimatedNow) -> snapping to fit (1.0)');
+        estimatedNow = _normBase;
+      }
+
+      // Clamp to a sane maximum
+      estimatedNow = estimatedNow.clamp(_minReasonableZoom, _maxReasonableZoom);
+
+      // Round to avoid floating jitter
+      _estimatedZoom = double.parse(estimatedNow.toStringAsFixed(3));
+
+      // Emit normalized zoom (1.0 == fit)
       widget.onZoomUpdate?.call(_estimatedZoom);
+
+      debugPrint('🔸 onZoomUpdate rawScale=$scaleFromStart estimatedNow=$_estimatedZoom');
     }
   }
 
@@ -176,15 +206,16 @@ class _PDFViewState extends State<PDFView> {
       if (_pinchActive) {
         _pinchActive = false;
 
-        // Keep last zoom instead of letting it collapse
-        if ((_estimatedZoom - 1.0).abs() <= _zoomEps) {
+        // Snap small values to fit
+        if ((_estimatedZoom - 1.0).abs() <= _zoomEps || _estimatedZoom < _minReasonableZoom) {
           _estimatedZoom = 1.0; // snap to fit
         }
 
         widget.onZoomEnd?.call();
+        debugPrint('🔹 onZoomEnd finalZoom=$_estimatedZoom');
       }
 
-      // DO NOT reset zoom to 0
+      // Reset pinch baseline; next two-finger touch will re-establish it
       _pinchStartDistance = null;
     }
   }
@@ -194,13 +225,37 @@ class _PDFViewState extends State<PDFView> {
   Widget build(BuildContext context) {
     Widget platformView;
 
+    // Build a mutable set of recognizers starting from any provided by the user.
+    final Set<Factory<OneSequenceGestureRecognizer>> gestureRecognizers =
+    (widget.gestureRecognizers != null)
+        ? Set<Factory<OneSequenceGestureRecognizer>>.from(widget.gestureRecognizers!)
+        : <Factory<OneSequenceGestureRecognizer>>{};
+
+    // Add a no-op HorizontalDrag recognizer to consume horizontal drags when
+    // swipeHorizontal is false (prevents native horizontal panning).
+    if (!widget.swipeHorizontal) {
+      gestureRecognizers.add(
+        Factory<OneSequenceGestureRecognizer>(() {
+          final recognizer = HorizontalDragGestureRecognizer();
+          // no-op handlers just to claim the gesture
+          recognizer.onStart = (_) {};
+          recognizer.onUpdate = (_) {};
+          recognizer.onEnd = (_) {};
+          recognizer.onCancel = () {};
+          return recognizer;
+        }),
+      );
+    }
+
+    // Create the platform view for Android / iOS. We pass our recognizers.
     if (defaultTargetPlatform == TargetPlatform.android) {
       platformView = PlatformViewLink(
         viewType: 'plugins.endigo.io/pdfview',
         surfaceFactory: (BuildContext context, PlatformViewController controller) {
           return AndroidViewSurface(
             controller: controller as AndroidViewController,
-            gestureRecognizers: widget.gestureRecognizers ?? const <Factory<OneSequenceGestureRecognizer>>{},
+            gestureRecognizers: gestureRecognizers,
+            // OPAQUE is fine — we will clip the rendered surface below.
             hitTestBehavior: PlatformViewHitTestBehavior.opaque,
           );
         },
@@ -223,25 +278,38 @@ class _PDFViewState extends State<PDFView> {
       platformView = UiKitView(
         viewType: 'plugins.endigo.io/pdfview',
         onPlatformViewCreated: _onPlatformViewCreated,
-        gestureRecognizers: widget.gestureRecognizers,
+        gestureRecognizers: gestureRecognizers,
         creationParams: _CreationParams.fromWidget(widget).toMap(),
         creationParamsCodec: const StandardMessageCodec(),
       );
     } else {
-      platformView = Text('$defaultTargetPlatform is not yet supported by the pdfview_flutter plugin');
+      platformView =
+          Text('$defaultTargetPlatform is not yet supported by the pdfview_flutter plugin');
     }
 
-    // Wrap with a transparent Listener to observe two-finger pinch without intercepting it.
+    // Wrap the platform view in ClipRect + Align so any native overflow is hidden.
+    // Align.center will keep the PDF centered inside the widget bounds.
+    final Widget clippedPlatformView = ClipRect(
+      child: Align(
+        alignment: Alignment.center,
+        widthFactor: 1.0,
+        heightFactor: 1.0,
+        child: SizedBox.expand(child: platformView),
+      ),
+    );
+
+    // Listener remains to observe pointer positions for pinch detection.
     return Stack(
       children: [
-        platformView,
+        clippedPlatformView,
         Positioned.fill(
           child: Listener(
-            behavior: HitTestBehavior.translucent, // don't block the native view
+            behavior: HitTestBehavior.translucent, // observe pointers without blocking events required for pinch
             onPointerDown: (e) {
               _pointers[e.pointer] = e.position;
               if (_pointers.length == 2) {
-                _pinchStartDistance = null; // reset baseline when second finger touches
+                // reset baseline distance so new pinch starts from fresh baseline
+                _pinchStartDistance = null;
               }
             },
             onPointerMove: (e) {
@@ -432,7 +500,7 @@ class PDFViewController {
         if (initialZoom != null && widget.enableSetZoom) {
           // attempt to set zoom on native viewer
           try {
-            await setZoom(initialZoom);
+          //  await setZoom(initialZoom);
           } catch (e) {
             // swallow — if native can't set zoom now, native side can also apply it
             // when ready; at least we attempted.
@@ -471,12 +539,23 @@ class PDFViewController {
 
   /// New: set absolute zoom. Convention: `zoom = 1.0` is "fit".
   /// Native side should interpret this as scaleFactor = fitScale * zoom.
-  Future<void> setZoom(double zoom) async {
-    assert(zoom > 0.0);
-    // Respect widget-level flag: do not call native setZoom if disabled
-    if (_widget != null && !_widget!.enableSetZoom) return;
-    await _channel.invokeMethod('setZoom', <String, dynamic>{'zoom': zoom});
-  }
+  // Future<void> setZoom(double zoom) async {
+  //   assert(zoom > 0.0);
+  //   // Respect widget-level flag: do not call native setZoom if disabled
+  //   if (_widget != null && !_widget!.enableSetZoom) return;
+  //
+  //   try {
+  //     await _channel.invokeMethod('setZoom', <String, dynamic>{'zoom': zoom});
+  //   } on MissingPluginException catch (e) {
+  //     // Native side does not implement setZoom — swallow but log for debugging
+  //     debugPrint('setZoom not implemented on native side: $e');
+  //   } on PlatformException catch (e) {
+  //     debugPrint('PlatformException while calling setZoom: ${e.message}');
+  //     rethrow; // rethrow only if you want callers to see it
+  //   } catch (e) {
+  //     debugPrint('Unexpected error calling setZoom: $e');
+  //   }
+  // }
 
   Future<void> _updateWidget(PDFView widget) async {
     _widget = widget;
