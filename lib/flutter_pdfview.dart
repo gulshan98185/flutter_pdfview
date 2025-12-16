@@ -359,6 +359,7 @@ class _CreationParams {
     this.pdfData,
     this.settings,
     this.enableSetZoom,
+    this.initialZoom
   });
 
   static _CreationParams fromWidget(PDFView widget) {
@@ -367,6 +368,7 @@ class _CreationParams {
       pdfData: widget.pdfData,
       settings: _PDFViewSettings.fromWidget(widget),
       enableSetZoom: widget.enableSetZoom,
+      initialZoom: widget.initialZoom
     );
   }
 
@@ -374,12 +376,14 @@ class _CreationParams {
   final Uint8List? pdfData;
   final _PDFViewSettings? settings;
   final bool? enableSetZoom;
+  final double? initialZoom;
 
   Map<String, dynamic> toMap() {
     final params = <String, dynamic>{
       'filePath': filePath,
       'pdfData': pdfData,
       'enableSetZoom': enableSetZoom,
+      'initialZoom':initialZoom,
     };
     params.addAll(settings!.toMap());
     return params;
@@ -490,26 +494,9 @@ class PDFViewController {
 
     switch (call.method) {
       case 'onRender':
-      // Native view finished rendering pages. First, forward to user callback:
         widget.onRender?.call(call.arguments['pages']);
-
-        // THEN: if widget.initialZoom is provided and setZoom is enabled, apply it now (only once).
-        // This ensures native page metrics are available so native code can compute
-        // the correct "fitScale".
-        final double? initialZoom = widget.initialZoom;
-        if (initialZoom != null && widget.enableSetZoom) {
-          // attempt to set zoom on native viewer
-          try {
-          //  await setZoom(initialZoom);
-          } catch (e) {
-            // swallow — if native can't set zoom now, native side can also apply it
-            // when ready; at least we attempted.
-          }
-          // Null out initialZoom in the widget isn't possible — user may rebuild widget.
-          // If you want to only apply once, pass a distinct "applyInitialZoomOnce" flag
-          // via creationParams or store state in your app-level code.
-        }
         return null;
+
 
       case 'onPageChanged':
         widget.onPageChanged?.call(call.arguments['page'], call.arguments['total']);
@@ -539,23 +526,23 @@ class PDFViewController {
 
   /// New: set absolute zoom. Convention: `zoom = 1.0` is "fit".
   /// Native side should interpret this as scaleFactor = fitScale * zoom.
-  // Future<void> setZoom(double zoom) async {
-  //   assert(zoom > 0.0);
-  //   // Respect widget-level flag: do not call native setZoom if disabled
-  //   if (_widget != null && !_widget!.enableSetZoom) return;
-  //
-  //   try {
-  //     await _channel.invokeMethod('setZoom', <String, dynamic>{'zoom': zoom});
-  //   } on MissingPluginException catch (e) {
-  //     // Native side does not implement setZoom — swallow but log for debugging
-  //     debugPrint('setZoom not implemented on native side: $e');
-  //   } on PlatformException catch (e) {
-  //     debugPrint('PlatformException while calling setZoom: ${e.message}');
-  //     rethrow; // rethrow only if you want callers to see it
-  //   } catch (e) {
-  //     debugPrint('Unexpected error calling setZoom: $e');
-  //   }
-  // }
+  Future<void> setZoom(double zoom) async {
+    assert(zoom > 0.0);
+    // Respect widget-level flag: do not call native setZoom if disabled
+    if (_widget != null && !_widget!.enableSetZoom) return;
+
+    try {
+      await _channel.invokeMethod('setZoom', <String, dynamic>{'zoom': zoom});
+    } on MissingPluginException catch (e) {
+      // Native side does not implement setZoom — swallow but log for debugging
+      debugPrint('setZoom not implemented on native side: $e');
+    } on PlatformException catch (e) {
+      debugPrint('PlatformException while calling setZoom: ${e.message}');
+      rethrow; // rethrow only if you want callers to see it
+    } catch (e) {
+      debugPrint('Unexpected error calling setZoom: $e');
+    }
+  }
 
   Future<void> _updateWidget(PDFView widget) async {
     _widget = widget;
