@@ -137,8 +137,8 @@
     }
 
     if (document == nil) {
-        [_controller invokeChannelMethod:@"onError" arguments:@{
-                @"error": @"cannot create document: File not in PDF format or corrupted."}];
+//        [_controller invokeChanne/Users/krishnakumar21/StudioProjects/doc-scanner-flutter/submodules/flutter_pdfview/ioslMethod:@"onError" arguments:@{
+//                @"error": @"cannot create document: File not in PDF format or corrupted."}];
     } else {
         _pdfView.pageBreakMargins = UIEdgeInsetsMake(8, 16, 8, 16);
         _pdfView.autoresizesSubviews = YES;
