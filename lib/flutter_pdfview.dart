@@ -477,7 +477,13 @@ class PDFViewController {
     _settings = _PDFViewSettings.fromWidget(widget);
     _channel.setMethodCallHandler(_onMethodCall);
   }
-
+  Future<void> reload() async {
+    try {
+      await _channel.invokeMethod('reload');
+    } catch (e) {
+      debugPrint('Reload not implemented: $e');
+    }
+  }
   void dispose() {
     _channel.setMethodCallHandler(null);
     _widget = null;

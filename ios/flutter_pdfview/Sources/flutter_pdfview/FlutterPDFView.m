@@ -78,7 +78,11 @@
         [_pdfView setPage:call result:result];
     } else if ([[call method] isEqualToString:@"updateSettings"]) {
         [_pdfView onUpdateSettings:call result:result];
-    } else {
+    }
+    else if ([[call method] isEqualToString:@"reload"]) {
+        [_pdfView reloadPdf:result];
+
+    }else {
         result(FlutterMethodNotImplemented);
     }
 }
@@ -252,6 +256,40 @@
 
 - (UIView *)view {
     return _pdfView;
+}
+- (void)reloadPdf:(FlutterResult)result {
+
+    NSURL *url = _pdfView.document.documentURL;
+    if (!url) {
+        result(@(NO));
+        return;
+    }
+
+    NSUInteger currentIndex = [_pdfView.document indexForPage:_pdfView.currentPage];
+
+    // 🔥 Completely destroy old document
+    _pdfView.document = nil;
+
+    // 🔥 Create brand new document from disk
+    PDFDocument *newDocument = [[PDFDocument alloc] initWithURL:url];
+
+    if (!newDocument) {
+        result(@(NO));
+        return;
+    }
+
+    _pdfView.document = newDocument;
+
+    // 🔥 Reset scaling properly
+    _pdfView.minScaleFactor = _pdfView.scaleFactorForSizeToFit;
+    _pdfView.scaleFactor = _pdfView.scaleFactorForSizeToFit;
+
+    // 🔥 Restore page safely
+    if (currentIndex < [newDocument pageCount]) {
+        [_pdfView goToPage:[newDocument pageAtIndex:currentIndex]];
+    }
+
+    result(@(YES));
 }
 
 - (void)getPageCount:(FlutterMethodCall *)call result:(FlutterResult)result {

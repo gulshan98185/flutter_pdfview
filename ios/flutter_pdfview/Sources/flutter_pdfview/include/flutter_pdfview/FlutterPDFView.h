@@ -38,6 +38,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)getCurrentPage:(FlutterMethodCall*)call result:(FlutterResult)result;
 - (void)setPage:(FlutterMethodCall*)call result:(FlutterResult)result;
 - (void)onUpdateSettings:(FlutterMethodCall*)call result:(FlutterResult)result;
+- (void)reloadPdf:(FlutterResult)result;
+
 
 @end
 
