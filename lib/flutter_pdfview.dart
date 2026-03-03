@@ -484,6 +484,13 @@ class PDFViewController {
       debugPrint('Reload not implemented: $e');
     }
   }
+  Future<void> animateToTop({
+    Duration duration = const Duration(milliseconds: 400),
+  }) async {
+    await _channel.invokeMethod('animateToTop', {
+      'duration': duration.inMilliseconds,
+    });
+  }
   void dispose() {
     _channel.setMethodCallHandler(null);
     _widget = null;
