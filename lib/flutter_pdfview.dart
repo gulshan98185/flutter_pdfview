@@ -12,6 +12,10 @@ typedef PageChangedCallback = void Function(int? page, int? total);
 typedef ErrorCallback = void Function(dynamic error);
 typedef PageErrorCallback = void Function(int? page, dynamic error);
 typedef LinkHandlerCallback = void Function(String? uri);
+typedef ZoomStartCallback = void Function();
+typedef ZoomUpdateCallback = void Function(double scale);
+typedef ZoomEndCallback = void Function();
+typedef PDFTapCallback = void Function();
 
 enum FitPolicy { WIDTH, HEIGHT, BOTH }
 
@@ -26,6 +30,10 @@ class PDFView extends StatefulWidget {
     this.onError,
     this.onPageError,
     this.onLinkHandler,
+    this.onZoomStart,
+    this.onZoomUpdate,
+    this.onZoomEnd,
+    this.onTap,
     this.gestureRecognizers,
     this.enableSwipe = true,
     this.swipeHorizontal = false,
@@ -62,6 +70,10 @@ class PDFView extends StatefulWidget {
 
   /// Used with preventLinkNavigation=true. It's helpful to customize link navigation
   final LinkHandlerCallback? onLinkHandler;
+  final ZoomStartCallback? onZoomStart;
+  final ZoomUpdateCallback? onZoomUpdate;
+  final ZoomEndCallback? onZoomEnd;
+  final PDFTapCallback? onTap;
 
   /// Which gestures should be consumed by the pdf view.
   ///
