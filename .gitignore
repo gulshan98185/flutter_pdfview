@@ -4,7 +4,7 @@
 .packages
 .pub/
 .idea/
-
+.build
 ios/.symlinks
 
 build/
