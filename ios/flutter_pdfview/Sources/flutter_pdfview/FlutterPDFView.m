@@ -81,7 +81,6 @@
     }
     else if ([[call method] isEqualToString:@"reload"]) {
         [_pdfView reloadPdf:result];
-
     }else {
         result(FlutterMethodNotImplemented);
     }
@@ -292,6 +291,13 @@
     result(@(YES));
 }
 
+- (void)clearTextSelection:(FlutterResult)result {
+    // PDFKit keeps the long-press selection until it is explicitly cleared.
+    // Clear it before the Flutter layer toggles fullscreen/app-bar chrome.
+    _pdfView.currentSelection = nil;
+    result(nil);
+}
+
 - (void)getPageCount:(FlutterMethodCall *)call result:(FlutterResult)result {
     _pageCount = [NSNumber numberWithUnsignedLong:[[_pdfView document] pageCount]];
     result(_pageCount);
@@ -394,6 +400,12 @@ shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other 
 
 
 - (void)handleTap:(UITapGestureRecognizer *)recognizer {
+    // A tap dismisses an active PDFKit text selection before doing anything
+    // else. Only a subsequent tap changes the editor's fullscreen state.
+    if (_pdfView.currentSelection != nil) {
+        [self clearTextSelection:^(id value) {}];
+        return;
+    }
     [_controller invokeChannelMethod:@"onTap" arguments:@{}];
 }
 

@@ -114,7 +114,8 @@ class PDFView extends StatefulWidget {
 }
 
 class _PDFViewState extends State<PDFView> {
-  final Completer<PDFViewController> _controller = Completer<PDFViewController>();
+  final Completer<PDFViewController> _controller =
+      Completer<PDFViewController>();
   static const double _normBase = 1.0; // "fit"
   static const double _normMax = 4.0; // treat 4x as 1.0 in normalized scale
 
@@ -129,7 +130,8 @@ class _PDFViewState extends State<PDFView> {
   static const double _zoomEps = 0.02; // ±2% tolerance considered "at 1.0"
 
   // Defensive thresholds for normalization
-  static const double _minReasonableZoom = 0.2; // anything below treated as noise/fit
+  static const double _minReasonableZoom =
+      0.2; // anything below treated as noise/fit
   static const double _maxReasonableZoom = 10.0; // clamp upper bound
 
   double _dist(Offset a, Offset b) => (a - b).distance;
@@ -166,12 +168,14 @@ class _PDFViewState extends State<PDFView> {
       _pinchActive = true;
 
       // Use a sane baseline: prefer current estimate if reasonable, otherwise default to 1.0
-      _zoomAtPinchStart = (_estimatedZoom.isFinite && _estimatedZoom >= _minReasonableZoom)
-          ? _estimatedZoom
-          : _normBase;
+      _zoomAtPinchStart =
+          (_estimatedZoom.isFinite && _estimatedZoom >= _minReasonableZoom)
+              ? _estimatedZoom
+              : _normBase;
 
       widget.onZoomStart?.call();
-      debugPrint('🔹 onZoomStart (pinch) baseline=$_zoomAtPinchStart pinchBase=$base');
+      debugPrint(
+          '🔹 onZoomStart (pinch) baseline=$_zoomAtPinchStart pinchBase=$base');
     }
 
     if (_pinchActive) {
@@ -184,7 +188,8 @@ class _PDFViewState extends State<PDFView> {
       }
       // If extremely small, treat as fit (noise)
       if (estimatedNow < _minReasonableZoom) {
-        debugPrint('⚠️ pinch estimate very small ($estimatedNow) -> snapping to fit (1.0)');
+        debugPrint(
+            '⚠️ pinch estimate very small ($estimatedNow) -> snapping to fit (1.0)');
         estimatedNow = _normBase;
       }
 
@@ -197,7 +202,8 @@ class _PDFViewState extends State<PDFView> {
       // Emit normalized zoom (1.0 == fit)
       widget.onZoomUpdate?.call(_estimatedZoom);
 
-      debugPrint('🔸 onZoomUpdate rawScale=$scaleFromStart estimatedNow=$_estimatedZoom');
+      debugPrint(
+          '🔸 onZoomUpdate rawScale=$scaleFromStart estimatedNow=$_estimatedZoom');
     }
   }
 
@@ -207,7 +213,8 @@ class _PDFViewState extends State<PDFView> {
         _pinchActive = false;
 
         // Snap small values to fit
-        if ((_estimatedZoom - 1.0).abs() <= _zoomEps || _estimatedZoom < _minReasonableZoom) {
+        if ((_estimatedZoom - 1.0).abs() <= _zoomEps ||
+            _estimatedZoom < _minReasonableZoom) {
           _estimatedZoom = 1.0; // snap to fit
         }
 
@@ -227,9 +234,10 @@ class _PDFViewState extends State<PDFView> {
 
     // Build a mutable set of recognizers starting from any provided by the user.
     final Set<Factory<OneSequenceGestureRecognizer>> gestureRecognizers =
-    (widget.gestureRecognizers != null)
-        ? Set<Factory<OneSequenceGestureRecognizer>>.from(widget.gestureRecognizers!)
-        : <Factory<OneSequenceGestureRecognizer>>{};
+        (widget.gestureRecognizers != null)
+            ? Set<Factory<OneSequenceGestureRecognizer>>.from(
+                widget.gestureRecognizers!)
+            : <Factory<OneSequenceGestureRecognizer>>{};
 
     // Add a no-op HorizontalDrag recognizer to consume horizontal drags when
     // swipeHorizontal is false (prevents native horizontal panning).
@@ -251,7 +259,8 @@ class _PDFViewState extends State<PDFView> {
     if (defaultTargetPlatform == TargetPlatform.android) {
       platformView = PlatformViewLink(
         viewType: 'plugins.endigo.io/pdfview',
-        surfaceFactory: (BuildContext context, PlatformViewController controller) {
+        surfaceFactory:
+            (BuildContext context, PlatformViewController controller) {
           return AndroidViewSurface(
             controller: controller as AndroidViewController,
             gestureRecognizers: gestureRecognizers,
@@ -283,8 +292,8 @@ class _PDFViewState extends State<PDFView> {
         creationParamsCodec: const StandardMessageCodec(),
       );
     } else {
-      platformView =
-          Text('$defaultTargetPlatform is not yet supported by the pdfview_flutter plugin');
+      platformView = Text(
+          '$defaultTargetPlatform is not yet supported by the pdfview_flutter plugin');
     }
 
     // Wrap the platform view in ClipRect + Align so any native overflow is hidden.
@@ -304,7 +313,8 @@ class _PDFViewState extends State<PDFView> {
         clippedPlatformView,
         Positioned.fill(
           child: Listener(
-            behavior: HitTestBehavior.translucent, // observe pointers without blocking events required for pinch
+            behavior: HitTestBehavior
+                .translucent, // observe pointers without blocking events required for pinch
             onPointerDown: (e) {
               _pointers[e.pointer] = e.position;
               if (_pointers.length == 2) {
@@ -343,33 +353,33 @@ class _PDFViewState extends State<PDFView> {
   @override
   void didUpdateWidget(PDFView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _controller.future.then((PDFViewController controller) => controller._updateWidget(widget));
+    _controller.future.then(
+        (PDFViewController controller) => controller._updateWidget(widget));
   }
 
   @override
   void dispose() {
-    _controller.future.then((PDFViewController controller) => controller.dispose());
+    _controller.future
+        .then((PDFViewController controller) => controller.dispose());
     super.dispose();
   }
 }
 
 class _CreationParams {
-  _CreationParams({
-    this.filePath,
-    this.pdfData,
-    this.settings,
-    this.enableSetZoom,
-    this.initialZoom
-  });
+  _CreationParams(
+      {this.filePath,
+      this.pdfData,
+      this.settings,
+      this.enableSetZoom,
+      this.initialZoom});
 
   static _CreationParams fromWidget(PDFView widget) {
     return _CreationParams(
-      filePath: widget.filePath,
-      pdfData: widget.pdfData,
-      settings: _PDFViewSettings.fromWidget(widget),
-      enableSetZoom: widget.enableSetZoom,
-      initialZoom: widget.initialZoom
-    );
+        filePath: widget.filePath,
+        pdfData: widget.pdfData,
+        settings: _PDFViewSettings.fromWidget(widget),
+        enableSetZoom: widget.enableSetZoom,
+        initialZoom: widget.initialZoom);
   }
 
   final String? filePath;
@@ -383,7 +393,7 @@ class _CreationParams {
       'filePath': filePath,
       'pdfData': pdfData,
       'enableSetZoom': enableSetZoom,
-      'initialZoom':initialZoom,
+      'initialZoom': initialZoom,
     };
     params.addAll(settings!.toMap());
     return params;
@@ -457,22 +467,26 @@ class _PDFViewSettings {
 
   Map<String, dynamic> updatesMap(_PDFViewSettings newSettings) {
     final Map<String, dynamic> updates = <String, dynamic>{};
-    if (enableSwipe != newSettings.enableSwipe) updates['enableSwipe'] = newSettings.enableSwipe;
-    if (pageFling != newSettings.pageFling) updates['pageFling'] = newSettings.pageFling;
-    if (pageSnap != newSettings.pageSnap) updates['pageSnap'] = newSettings.pageSnap;
+    if (enableSwipe != newSettings.enableSwipe)
+      updates['enableSwipe'] = newSettings.enableSwipe;
+    if (pageFling != newSettings.pageFling)
+      updates['pageFling'] = newSettings.pageFling;
+    if (pageSnap != newSettings.pageSnap)
+      updates['pageSnap'] = newSettings.pageSnap;
     if (preventLinkNavigation != newSettings.preventLinkNavigation) {
       updates['preventLinkNavigation'] = newSettings.preventLinkNavigation;
     }
-    if (enableSetZoom != newSettings.enableSetZoom) updates['enableSetZoom'] = newSettings.enableSetZoom;
+    if (enableSetZoom != newSettings.enableSetZoom)
+      updates['enableSetZoom'] = newSettings.enableSetZoom;
     return updates;
   }
 }
 
 class PDFViewController {
   PDFViewController._(
-      int id,
-      PDFView widget,
-      )   : _channel = MethodChannel('plugins.endigo.io/pdfview_$id'),
+    int id,
+    PDFView widget,
+  )   : _channel = MethodChannel('plugins.endigo.io/pdfview_$id'),
         _widget = widget {
     _settings = _PDFViewSettings.fromWidget(widget);
     _channel.setMethodCallHandler(_onMethodCall);
@@ -484,6 +498,7 @@ class PDFViewController {
       debugPrint('Reload not implemented: $e');
     }
   }
+
   Future<void> animateToTop({
     Duration duration = const Duration(milliseconds: 400),
   }) async {
@@ -491,6 +506,7 @@ class PDFViewController {
       'duration': duration.inMilliseconds,
     });
   }
+
   void dispose() {
     _channel.setMethodCallHandler(null);
     _widget = null;
@@ -510,15 +526,16 @@ class PDFViewController {
         widget.onRender?.call(call.arguments['pages']);
         return null;
 
-
       case 'onPageChanged':
-        widget.onPageChanged?.call(call.arguments['page'], call.arguments['total']);
+        widget.onPageChanged
+            ?.call(call.arguments['page'], call.arguments['total']);
         return null;
       case 'onError':
         widget.onError?.call(call.arguments['error']);
         return null;
       case 'onPageError':
-        widget.onPageError?.call(call.arguments['page'], call.arguments['error']);
+        widget.onPageError
+            ?.call(call.arguments['page'], call.arguments['error']);
         return null;
       case 'onLinkHandler':
         widget.onLinkHandler?.call(call.arguments);
@@ -527,14 +544,17 @@ class PDFViewController {
         widget.onTap?.call();
         return null;
     }
-    throw MissingPluginException('${call.method} was invoked but has no handler');
+    throw MissingPluginException(
+        '${call.method} was invoked but has no handler');
   }
 
   Future<int?> getPageCount() async => _channel.invokeMethod<int>('pageCount');
-  Future<int?> getCurrentPage() async => _channel.invokeMethod<int>('currentPage');
+  Future<int?> getCurrentPage() async =>
+      _channel.invokeMethod<int>('currentPage');
 
   Future<bool?> setPage(int page) async {
-    return _channel.invokeMethod<bool>('setPage', <String, dynamic>{'page': page});
+    return _channel
+        .invokeMethod<bool>('setPage', <String, dynamic>{'page': page});
   }
 
   /// New: set absolute zoom. Convention: `zoom = 1.0` is "fit".
