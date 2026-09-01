@@ -69,22 +69,21 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
 
         if (config != null) {
             config
-                    //.enableSwipe(getBoolean(params, "enableSwipe"))
-                    //.swipeHorizontal(getBoolean(params, "swipeHorizontal"))
+                    .enableSwipe(getBoolean(params, "enableSwipe"))
+                    .swipeHorizontal(getBoolean(params, "swipeHorizontal"))
                     .password(getString(params, "password"))
-                    //.nightMode(getBoolean(params, "nightMode"))
-                    //.autoSpacing(getBoolean(params, "autoSpacing"))
-                    //.pageFling(getBoolean(params, "pageFling"))
-                    //.pageSnap(getBoolean(params, "pageSnap"))
-                    //.pageFitPolicy(getFitPolicy(params))
+                    .nightMode(getBoolean(params, "nightMode"))
+                    .autoSpacing(getBoolean(params, "autoSpacing"))
+                    .pageFling(getBoolean(params, "pageFling"))
+                    .pageSnap(getBoolean(params, "pageSnap"))
+                    .pageFitPolicy(getFitPolicy(params))
+                    .fitEachPage(getBoolean(params, "fitEachPage"))
                     .enableAnnotationRendering(true)
                     .linkHandler(linkHandler)
                     .spacing(16)
                     //.enableAntialiasing(false)
-                    .nightMode(false)
                     //.scrollHandle(new CustomScrollHandle(context, false))
                     //.scrollHandle(new DefaultScrollHandle(context, false))
-                    // .fitEachPage(getBoolean(params,"fitEachPage"))
                     .onPageChange(new OnPageChangeListener() {
                         @Override
                         public void onPageChanged(int page, int total) {

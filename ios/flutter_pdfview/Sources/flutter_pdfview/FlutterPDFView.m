@@ -104,6 +104,7 @@
     PDFDestination *_currentDestination;
     BOOL _preventLinkNavigation;
     BOOL _autoSpacing;
+    BOOL _fitEachPage;
     PDFPage *_defaultPage;
     BOOL _defaultPageSet;
 
@@ -121,6 +122,7 @@
     _pdfView.userInteractionEnabled = YES;
 
     _autoSpacing = [args[@"autoSpacing"] boolValue];
+    _fitEachPage = [args[@"fitEachPage"] boolValue];
     BOOL pageFling = [args[@"pageFling"] boolValue];
     BOOL enableSwipe = [args[@"enableSwipe"] boolValue];
     _preventLinkNavigation = [args[@"preventLinkNavigation"] boolValue];
@@ -326,6 +328,22 @@
 }
 
 - (void)handlePageChanged:(NSNotification *)notification {
+    if (_fitEachPage && _autoSpacing) {
+        // PDFKit uses one scale for a continuous document. Recalculate the
+        // fit scale when mixed-size merged pages become current, but only when
+        // the user was already at the normal fit scale so manual zoom is kept.
+        const CGFloat previousFit = _pdfView.minScaleFactor;
+        const BOOL wasAtFit = _pdfView.scaleFactor <= previousFit * 1.05;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            const CGFloat pageFit = self->_pdfView.scaleFactorForSizeToFit;
+            if (pageFit <= 0) return;
+            if (wasAtFit) {
+                self->_pdfView.minScaleFactor = pageFit;
+                self->_pdfView.scaleFactor = pageFit;
+            }
+        });
+    }
+
     [_controller invokeChannelMethod:@"onPageChanged" arguments:@{
             @"page": [NSNumber numberWithUnsignedLong:[_pdfView.document indexForPage:_pdfView.currentPage]],
             @"total": [NSNumber numberWithUnsignedLong:[_pdfView.document pageCount]]}];

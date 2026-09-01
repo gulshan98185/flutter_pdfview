@@ -411,6 +411,7 @@ class _PDFViewSettings {
     this.pageSnap,
     this.defaultPage,
     this.fitPolicy,
+    this.fitEachPage,
     this.preventLinkNavigation,
     this.backgroundColor,
     this.enableSetZoom,
@@ -427,6 +428,7 @@ class _PDFViewSettings {
       pageSnap: widget.pageSnap,
       defaultPage: widget.defaultPage,
       fitPolicy: widget.fitPolicy,
+      fitEachPage: widget.fitEachPage,
       preventLinkNavigation: widget.preventLinkNavigation,
       backgroundColor: widget.backgroundColor,
       enableSetZoom: widget.enableSetZoom,
@@ -442,6 +444,7 @@ class _PDFViewSettings {
   final bool? pageSnap;
   final int? defaultPage;
   final FitPolicy? fitPolicy;
+  final bool? fitEachPage;
   final bool? preventLinkNavigation;
   final Color? backgroundColor;
 
@@ -459,6 +462,7 @@ class _PDFViewSettings {
       'pageSnap': pageSnap,
       'defaultPage': defaultPage,
       'fitPolicy': fitPolicy.toString(),
+      'fitEachPage': fitEachPage,
       'preventLinkNavigation': preventLinkNavigation,
       'backgroundColor': backgroundColor?.value,
       'enableSetZoom': enableSetZoom,
