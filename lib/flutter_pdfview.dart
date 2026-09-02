@@ -62,6 +62,9 @@ class PDFView extends StatefulWidget {
 
     // NEW: whether setZoom is allowed (Dart + native will honor)
     this.enableSetZoom = true,
+
+    // Keep PDFKit's active pinch scale when this platform view is laid out.
+    this.preserveZoomOnLayout = false,
   })  : assert(filePath != null || pdfData != null),
         super(key: key);
 
@@ -111,6 +114,9 @@ class PDFView extends StatefulWidget {
 
   // NEW: enable/disable setZoom behavior
   final bool enableSetZoom;
+
+  // Opt-in because only the main PDF editor needs stable native pinch layout.
+  final bool preserveZoomOnLayout;
 }
 
 class _PDFViewState extends State<PDFView> {
@@ -371,7 +377,8 @@ class _CreationParams {
       this.pdfData,
       this.settings,
       this.enableSetZoom,
-      this.initialZoom});
+      this.initialZoom,
+      this.preserveZoomOnLayout});
 
   static _CreationParams fromWidget(PDFView widget) {
     return _CreationParams(
@@ -379,7 +386,8 @@ class _CreationParams {
         pdfData: widget.pdfData,
         settings: _PDFViewSettings.fromWidget(widget),
         enableSetZoom: widget.enableSetZoom,
-        initialZoom: widget.initialZoom);
+        initialZoom: widget.initialZoom,
+        preserveZoomOnLayout: widget.preserveZoomOnLayout);
   }
 
   final String? filePath;
@@ -387,6 +395,7 @@ class _CreationParams {
   final _PDFViewSettings? settings;
   final bool? enableSetZoom;
   final double? initialZoom;
+  final bool? preserveZoomOnLayout;
 
   Map<String, dynamic> toMap() {
     final params = <String, dynamic>{
@@ -394,6 +403,7 @@ class _CreationParams {
       'pdfData': pdfData,
       'enableSetZoom': enableSetZoom,
       'initialZoom': initialZoom,
+      'preserveZoomOnLayout': preserveZoomOnLayout,
     };
     params.addAll(settings!.toMap());
     return params;

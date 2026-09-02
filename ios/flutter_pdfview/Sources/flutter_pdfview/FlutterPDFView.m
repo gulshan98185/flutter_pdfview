@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #import "./include/flutter_pdfview/FlutterPDFView.h"
+#import <math.h>
 
 @implementation FLTPDFViewFactory {
     NSObject <FlutterBinaryMessenger> *_messenger;
@@ -107,6 +108,10 @@
     BOOL _fitEachPage;
     PDFPage *_defaultPage;
     BOOL _defaultPageSet;
+    BOOL _preserveZoomOnLayout;
+    BOOL _didApplyInitialFit;
+    CGRect _lastLayoutBounds;
+    UIScrollView *_scrollView;
 
     UITapGestureRecognizer *_singleTapGR;
     UITapGestureRecognizer *_doubleTapGR;
@@ -123,6 +128,7 @@
 
     _autoSpacing = [args[@"autoSpacing"] boolValue];
     _fitEachPage = [args[@"fitEachPage"] boolValue];
+    _preserveZoomOnLayout = [args[@"preserveZoomOnLayout"] boolValue];
     BOOL pageFling = [args[@"pageFling"] boolValue];
     BOOL enableSwipe = [args[@"enableSwipe"] boolValue];
     _preventLinkNavigation = [args[@"preventLinkNavigation"] boolValue];
@@ -158,8 +164,21 @@
         _pdfView.displayMode = enableSwipe ? kPDFDisplaySinglePageContinuous : kPDFDisplaySinglePage;
         _pdfView.document = document;
 
-        _pdfView.maxScaleFactor = [args[@"maxZoom"] doubleValue];
-        _pdfView.minScaleFactor = _pdfView.scaleFactorForSizeToFit;
+        if (_preserveZoomOnLayout) {
+            CGFloat requestedMaxScale = [args[@"maxZoom"] doubleValue];
+            if (!isfinite(requestedMaxScale) || requestedMaxScale <= 0.0) {
+                requestedMaxScale = 4.0;
+            }
+            _pdfView.maxScaleFactor = requestedMaxScale;
+
+            const CGFloat initialFit = _pdfView.scaleFactorForSizeToFit;
+            if (isfinite(initialFit) && initialFit > 0.0) {
+                _pdfView.minScaleFactor = initialFit;
+            }
+        } else {
+            _pdfView.maxScaleFactor = [args[@"maxZoom"] doubleValue];
+            _pdfView.minScaleFactor = _pdfView.scaleFactorForSizeToFit;
+        }
 
         NSString *password = args[@"password"];
         if ([password isKindOfClass:[NSString class]] && [_pdfView.document isEncrypted]) {
@@ -219,7 +238,6 @@
     }
 
     if (@available(iOS 11.0, *)) {
-        UIScrollView *_scrollView;
         for (id subview in _pdfView.subviews) {
             if ([subview isKindOfClass:[UIScrollView class]]) {
                 _scrollView = subview;
@@ -243,10 +261,36 @@
 - (void)layoutSubviews {
     [super layoutSubviews];
     _pdfView.frame = self.bounds;
-    _pdfView.minScaleFactor = _pdfView.scaleFactorForSizeToFit;
-    _pdfView.maxScaleFactor = 4.0;
-    if (_autoSpacing) {
-        _pdfView.scaleFactor = _pdfView.scaleFactorForSizeToFit;
+
+    if (_preserveZoomOnLayout) {
+        const BOOL pinchInProgress = _scrollView != nil &&
+            (_scrollView.pinchGestureRecognizer.state == UIGestureRecognizerStateBegan ||
+             _scrollView.pinchGestureRecognizer.state == UIGestureRecognizerStateChanged);
+        const BOOL boundsChanged = !CGRectEqualToRect(_lastLayoutBounds, self.bounds);
+        const BOOL hasUsableBounds = self.bounds.size.width > 0.0 && self.bounds.size.height > 0.0;
+        const CGFloat fit = hasUsableBounds ? _pdfView.scaleFactorForSizeToFit : 0.0;
+        const BOOL validFit = isfinite(fit) && fit > 0.0;
+
+        NSLog(@"[PDF_ZOOM_TRACE][HOME_PDF_EDITOR] bounds=%@ fit=%.6f scale=%.6f min=%.6f max=%.6f pinch=%d changed=%d",
+              NSStringFromCGRect(self.bounds), fit, _pdfView.scaleFactor,
+              _pdfView.minScaleFactor, _pdfView.maxScaleFactor,
+              pinchInProgress, boundsChanged);
+
+        if (validFit && !pinchInProgress) {
+            _pdfView.minScaleFactor = fit;
+            _pdfView.maxScaleFactor = MAX(4.0, fit);
+            if (_autoSpacing && (!_didApplyInitialFit || boundsChanged)) {
+                _pdfView.scaleFactor = fit;
+                _didApplyInitialFit = true;
+            }
+        }
+        _lastLayoutBounds = self.bounds;
+    } else {
+        _pdfView.minScaleFactor = _pdfView.scaleFactorForSizeToFit;
+        _pdfView.maxScaleFactor = 4.0;
+        if (_autoSpacing) {
+            _pdfView.scaleFactor = _pdfView.scaleFactorForSizeToFit;
+        }
     }
 
     if (!_defaultPageSet && _defaultPage != nil) {
@@ -282,8 +326,17 @@
     _pdfView.document = newDocument;
 
     // 🔥 Reset scaling properly
-    _pdfView.minScaleFactor = _pdfView.scaleFactorForSizeToFit;
-    _pdfView.scaleFactor = _pdfView.scaleFactorForSizeToFit;
+    if (_preserveZoomOnLayout) {
+        const CGFloat fit = _pdfView.scaleFactorForSizeToFit;
+        if (isfinite(fit) && fit > 0.0) {
+            _pdfView.minScaleFactor = fit;
+            _pdfView.scaleFactor = fit;
+            _didApplyInitialFit = true;
+        }
+    } else {
+        _pdfView.minScaleFactor = _pdfView.scaleFactorForSizeToFit;
+        _pdfView.scaleFactor = _pdfView.scaleFactorForSizeToFit;
+    }
 
     // 🔥 Restore page safely
     if (currentIndex < [newDocument pageCount]) {
