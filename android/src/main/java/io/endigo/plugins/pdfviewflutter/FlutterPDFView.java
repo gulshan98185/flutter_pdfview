@@ -133,6 +133,13 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
     @Override
     public void onMethodCall(MethodCall methodCall, Result result) {
         switch (methodCall.method) {
+            case "getZoomState":
+                Map<String, Object> zoomState = new HashMap<>();
+                zoomState.put("zoom", (double) pdfView.getZoom());
+                zoomState.put("minZoom", (double) pdfView.getMinZoom());
+                zoomState.put("maxZoom", (double) pdfView.getMaxZoom());
+                result.success(zoomState);
+                break;
             case "pageCount":
                 getPageCount(result);
                 break;

@@ -73,6 +73,8 @@
 - (void)onMethodCall:(FlutterMethodCall *)call result:(FlutterResult)result {
     if ([[call method] isEqualToString:@"pageCount"]) {
         [_pdfView getPageCount:call result:result];
+    } else if ([[call method] isEqualToString:@"getZoomState"]) {
+        [_pdfView getZoomState:result];
     } else if ([[call method] isEqualToString:@"currentPage"]) {
         [_pdfView getCurrentPage:call result:result];
     } else if ([[call method] isEqualToString:@"setPage"]) {
@@ -351,6 +353,12 @@
     // Clear it before the Flutter layer toggles fullscreen/app-bar chrome.
     _pdfView.currentSelection = nil;
     result(nil);
+}
+
+- (void)getZoomState:(FlutterResult)result {
+    result(@{@"zoom": @(_pdfView.scaleFactor),
+             @"minZoom": @(_pdfView.minScaleFactor),
+             @"maxZoom": @(_pdfView.maxScaleFactor)});
 }
 
 - (void)getPageCount:(FlutterMethodCall *)call result:(FlutterResult)result {

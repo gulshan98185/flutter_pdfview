@@ -562,6 +562,12 @@ class PDFViewController {
         '${call.method} was invoked but has no handler');
   }
 
+  /// Actual native scale and its limits, in the same platform-specific units.
+  Future<Map<String, double>?> getZoomState() async {
+    final state = await _channel.invokeMapMethod<String, num>('getZoomState');
+    return state?.map((key, value) => MapEntry(key, value.toDouble()));
+  }
+
   Future<int?> getPageCount() async => _channel.invokeMethod<int>('pageCount');
   Future<int?> getCurrentPage() async =>
       _channel.invokeMethod<int>('currentPage');

@@ -34,6 +34,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)layoutSubviews;
 - (UIView*)view;
+- (void)getZoomState:(FlutterResult)result;
 - (void)getPageCount:(FlutterMethodCall*)call result:(FlutterResult)result;
 - (void)getCurrentPage:(FlutterMethodCall*)call result:(FlutterResult)result;
 - (void)setPage:(FlutterMethodCall*)call result:(FlutterResult)result;
