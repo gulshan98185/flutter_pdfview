@@ -31,6 +31,7 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
     private final PDFView pdfView;
     private final MethodChannel methodChannel;
     private final LinkHandler linkHandler;
+    private boolean disposed = false;
 
     @SuppressWarnings("unchecked")
     FlutterPDFView(Context context, BinaryMessenger messenger, int id, Map<String, Object> params) {
@@ -208,7 +209,11 @@ public class FlutterPDFView implements PlatformView, MethodCallHandler {
 
     @Override
     public void dispose() {
+        if (disposed) return;
+        disposed = true;
         methodChannel.setMethodCallHandler(null);
+        // Cancel rendering/decoding and release page bitmaps and Pdfium handles.
+        pdfView.recycle();
     }
 
     boolean getBoolean(Map<String, Object> params, String key) {

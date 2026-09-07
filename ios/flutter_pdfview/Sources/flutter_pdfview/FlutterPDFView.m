@@ -260,6 +260,12 @@
     return self;
 }
 
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    _pdfView.delegate = nil;
+    _pdfView.document = nil;
+}
+
 - (void)layoutSubviews {
     [super layoutSubviews];
     _pdfView.frame = self.bounds;

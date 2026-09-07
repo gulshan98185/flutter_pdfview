@@ -351,6 +351,10 @@ class _PDFViewState extends State<PDFView> {
   void _onPlatformViewCreated(int id) {
     final PDFViewController controller = PDFViewController._(id, widget);
     _controller.complete(controller);
+    if (!mounted) {
+      controller.dispose();
+      return;
+    }
     widget.onViewCreated?.call(controller);
     // No direct call to setZoom here — we rely on the native 'onRender' event to
     // apply initialZoom (see PDFViewController._onMethodCall below).
@@ -359,8 +363,9 @@ class _PDFViewState extends State<PDFView> {
   @override
   void didUpdateWidget(PDFView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _controller.future.then(
-        (PDFViewController controller) => controller._updateWidget(widget));
+    _controller.future.then((PDFViewController controller) {
+      if (mounted) controller._updateWidget(widget);
+    });
   }
 
   @override
