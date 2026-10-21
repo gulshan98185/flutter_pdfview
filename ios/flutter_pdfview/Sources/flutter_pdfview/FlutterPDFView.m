@@ -164,6 +164,16 @@
 
         [_pdfView usePageViewController:pageFling withViewOptions:nil];
         _pdfView.displayMode = enableSwipe ? kPDFDisplaySinglePageContinuous : kPDFDisplaySinglePage;
+        //Checking for locked document
+        NSString *password = args[@"password"];
+        if ([password isKindOfClass:[NSString class]] && document.isLocked) {
+            [document unlockWithPassword:password];
+        }
+        //Encryption can show dialog on non-protected document
+//        NSString *password = args[@"password"];
+//        if ([password isKindOfClass:[NSString class]] && [_pdfView.document isEncrypted]) {
+//            [_pdfView.document unlockWithPassword:password];
+//        }
         _pdfView.document = document;
 
         if (_preserveZoomOnLayout) {
@@ -180,11 +190,6 @@
         } else {
             _pdfView.maxScaleFactor = [args[@"maxZoom"] doubleValue];
             _pdfView.minScaleFactor = _pdfView.scaleFactorForSizeToFit;
-        }
-
-        NSString *password = args[@"password"];
-        if ([password isKindOfClass:[NSString class]] && [_pdfView.document isEncrypted]) {
-            [_pdfView.document unlockWithPassword:password];
         }
 
         // --- Gestures (deterministic) ---
@@ -230,13 +235,16 @@
         });
 
         NSUInteger pageCount = [document pageCount];
-        if (pageCount <= defaultPage) defaultPage = pageCount - 1;
-
-        _defaultPage = [document pageAtIndex:defaultPage];
-        __weak __typeof__(self) weakSelf = self;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [weakSelf handleRenderCompleted:[NSNumber numberWithUnsignedLong:[document pageCount]]];
-        });
+        // A locked/empty document has no valid page index and is not rendered.
+        if (!document.isLocked && pageCount > 0) {
+            if (defaultPage < 0) defaultPage = 0;
+            if ((NSUInteger)defaultPage >= pageCount) defaultPage = pageCount - 1;
+            _defaultPage = [document pageAtIndex:defaultPage];
+            __weak __typeof__(self) weakSelf = self;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [weakSelf handleRenderCompleted:[NSNumber numberWithUnsignedLong:pageCount]];
+            });
+        }
     }
 
     if (@available(iOS 11.0, *)) {
