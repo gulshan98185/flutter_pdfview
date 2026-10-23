@@ -34,6 +34,16 @@
 
 @implementation FLTPDFViewController {
     FLTPDFView *_pdfView;
+    UIView *_containerView;
+    NSDictionary *_creationArguments;
+    NSMutableDictionary<NSString *, FLTPDFView *> *_documentViews;
+    NSMutableDictionary<NSString *, NSDictionary *> *_documentVersions;
+    // Rapid tab changes previously replaced PDFView.document repeatedly.
+    // The crash dump stopped in CFRelease -> PDFTileSurface.releaseSurface
+    // during a Core Animation transaction. Keep each open document attached
+    // to its own viewer, and switch visibility without tearing down its tiles.
+    // Release retained viewers on close; recreate only when the file changes.
+    BOOL _retainDocumentViews;
     int64_t _viewId;
     FlutterMethodChannel *_channel;
 }
@@ -43,7 +53,23 @@
                     arguments:(id _Nullable)args
               binaryMessenger:(NSObject <FlutterBinaryMessenger> *)messenger {
     self = [super init];
-    _pdfView = [[FLTPDFView new] initWithFrame:frame arguments:args controller:self];
+    _creationArguments = [args copy];
+    _retainDocumentViews = [args[@"retainDocumentViews"] boolValue];
+    _pdfView = [[FLTPDFView alloc] initWithFrame:frame arguments:args controller:self];
+    if (_retainDocumentViews) {
+        _containerView = [[UIView alloc] initWithFrame:frame];
+        _containerView.clipsToBounds = YES;
+        _pdfView.frame = _containerView.bounds;
+        _pdfView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        [_containerView addSubview:_pdfView];
+        _documentViews = [NSMutableDictionary dictionary];
+        _documentVersions = [NSMutableDictionary dictionary];
+        NSString *path = args[@"filePath"];
+        if ([path isKindOfClass:[NSString class]]) {
+            _documentViews[path] = _pdfView;
+            _documentVersions[path] = [self documentVersionAtPath:path];
+        }
+    }
     _viewId = viewId;
 
     @try {
@@ -84,6 +110,15 @@
     }
     else if ([[call method] isEqualToString:@"reload"]) {
         [_pdfView reloadPdf:result];
+    } else if ([[call method] isEqualToString:@"loadDocument"]) {
+        if (_retainDocumentViews) {
+            [self showRetainedDocument:call result:result];
+        } else {
+            result(FlutterMethodNotImplemented);
+        }
+    } else if ([[call method] isEqualToString:@"retainDocumentPaths"]) {
+        [self retainDocumentPaths:call.arguments[@"paths"]];
+        result(nil);
     }else {
         result(FlutterMethodNotImplemented);
     }
@@ -93,8 +128,80 @@
     [_channel invokeMethod:name arguments:args];
 }
 
+// Size and modification time invalidate a viewer when edits rewrite its file.
+- (NSDictionary *)documentVersionAtPath:(NSString *)path {
+    NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil];
+    return @{@"size": attributes[NSFileSize] ?: @0,
+             @"modified": attributes[NSFileModificationDate] ?: [NSDate distantPast]};
+}
+
+- (void)retainDocumentPaths:(NSArray *)paths {
+    if (!_retainDocumentViews || ![paths isKindOfClass:[NSArray class]]) return;
+    NSSet *openPaths = [NSSet setWithArray:paths];
+    for (NSString *path in [_documentViews.allKeys copy]) {
+        FLTPDFView *view = _documentViews[path];
+        // The outgoing view remains alive until the new one is active.
+        if (![openPaths containsObject:path] && view != _pdfView) {
+            [view removeFromSuperview];
+            [_documentViews removeObjectForKey:path];
+            [_documentVersions removeObjectForKey:path];
+        }
+    }
+}
+
+- (void)showRetainedDocument:(FlutterMethodCall *)call result:(FlutterResult)result {
+    NSString *path = call.arguments[@"filePath"];
+    if (![path isKindOfClass:[NSString class]] ||
+        ![[NSFileManager defaultManager] fileExistsAtPath:path]) {
+        result(@NO);
+        return;
+    }
+    NSDictionary *version = [self documentVersionAtPath:path];
+    FLTPDFView *nextView = _documentViews[path];
+    BOOL cacheHit = nextView != nil && [_documentVersions[path] isEqual:version];
+    if (!cacheHit) {
+        // Validate before changing the visible viewer. No document is ever
+        // reassigned on a cached tab switch, avoiding PDFKit tile teardown.
+        PDFDocument *document = [[PDFDocument alloc] initWithURL:[NSURL fileURLWithPath:path]];
+        if (document == nil || document.isLocked || document.pageCount == 0) {
+            result(@NO);
+            return;
+        }
+        NSMutableDictionary *args = [_creationArguments mutableCopy];
+        args[@"filePath"] = path;
+        args[@"defaultPage"] = call.arguments[@"defaultPage"] ?: @0;
+        [args removeObjectForKey:@"pdfData"];
+        nextView = [[FLTPDFView alloc] initWithFrame:_containerView.bounds arguments:args controller:self];
+        nextView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        nextView.view.backgroundColor = _pdfView.view.backgroundColor;
+        FLTPDFView *staleView = _documentViews[path];
+        [staleView removeFromSuperview];
+        _documentViews[path] = nextView;
+        _documentVersions[path] = version;
+        [_containerView addSubview:nextView];
+    }
+    _pdfView.hidden = YES;
+    _pdfView = nextView;
+    _pdfView.hidden = NO;
+    [_containerView bringSubviewToFront:_pdfView];
+    [_pdfView setNeedsLayout];
+    [_pdfView layoutIfNeeded];
+    [self retainDocumentPaths:call.arguments[@"openDocumentPaths"]];
+    // The method response means the viewer is selected, not that asynchronous
+    // PDFKit rendering has completed. Dart queries the retained page state.
+    result(@YES);
+}
+
+- (void)invokeChannelMethodFromView:(FLTPDFView *)view name:(NSString *)name arguments:(id)args {
+    // Hidden viewers can still finish rendering or analysing. Their callbacks
+    // must never update the selected document's page/zoom state in Flutter.
+    if (view == _pdfView) {
+        [self invokeChannelMethod:name arguments:args];
+    }
+}
+
 - (UIView *)view {
-    return _pdfView;
+    return _retainDocumentViews ? _containerView : _pdfView;
 }
 
 @end
@@ -106,6 +213,7 @@
     NSNumber *_currentPage;
     PDFDestination *_currentDestination;
     BOOL _preventLinkNavigation;
+    BOOL _enableDataDetectors;
     BOOL _autoSpacing;
     BOOL _fitEachPage;
     PDFPage *_defaultPage;
@@ -122,6 +230,8 @@
 - (instancetype)initWithFrame:(CGRect)frame
                     arguments:(id _Nullable)args
                    controller:(nonnull FLTPDFViewController*)controller {
+    self = [super initWithFrame:frame];
+    if (self == nil) return nil;
     _controller = controller;
 
     _pdfView = [[PDFView alloc] initWithFrame:frame];
@@ -134,24 +244,35 @@
     BOOL pageFling = [args[@"pageFling"] boolValue];
     BOOL enableSwipe = [args[@"enableSwipe"] boolValue];
     _preventLinkNavigation = [args[@"preventLinkNavigation"] boolValue];
+    NSNumber *dataDetectors = args[@"enableDataDetectors"];
+    _enableDataDetectors = dataDetectors == nil ? YES : dataDetectors.boolValue;
 
     NSInteger defaultPage = [args[@"defaultPage"] integerValue];
 
     NSString *filePath = args[@"filePath"];
     FlutterStandardTypedData *pdfData = args[@"pdfData"];
 
-    PDFDocument *document;
+    PDFDocument *document = nil;
     if ([filePath isKindOfClass:[NSString class]]) {
-        NSURL *sourcePDFUrl = [NSURL fileURLWithPath:filePath];
-        document = [[PDFDocument alloc] initWithURL:sourcePDFUrl];
+        @try {
+            NSURL *sourcePDFUrl = [NSURL fileURLWithPath:filePath];
+            document = [[PDFDocument alloc] initWithURL:sourcePDFUrl];
+        } @catch (NSException *exception) {
+            NSLog(@"[PDFView] initial_document_exception file=%@ name=%@ reason=%@",
+                  filePath.lastPathComponent, exception.name, exception.reason);
+        }
     } else if ([pdfData isKindOfClass:[FlutterStandardTypedData class]]) {
         NSData *sourcePDFdata = [pdfData data];
-        document = [[PDFDocument alloc] initWithData:sourcePDFdata];
+        @try {
+            document = [[PDFDocument alloc] initWithData:sourcePDFdata];
+        } @catch (NSException *exception) {
+            NSLog(@"[PDFView] initial_data_exception name=%@ reason=%@",
+                  exception.name, exception.reason);
+        }
     }
 
     if (document == nil) {
-//        [_controller invokeChanne/Users/krishnakumar21/StudioProjects/doc-scanner-flutter/submodules/flutter_pdfview/ioslMethod:@"onError" arguments:@{
-//                @"error": @"cannot create document: File not in PDF format or corrupted."}];
+        NSLog(@"[PDFView] Could not open PDF document.");
     } else {
         _pdfView.pageBreakMargins = UIEdgeInsetsMake(8, 16, 8, 16);
         _pdfView.autoresizesSubviews = YES;
@@ -175,6 +296,10 @@
 //            [_pdfView.document unlockWithPassword:password];
 //        }
         _pdfView.document = document;
+        // Generated image previews do not need automatic phone/date/address
+        // scanning. iOS 26 PDFScannerResult can trap while scanning a tapped
+        // image-only page, before Flutter receives its onTap callback.
+        _pdfView.enableDataDetectors = _enableDataDetectors;
 
         if (_preserveZoomOnLayout) {
             CGFloat requestedMaxScale = [args[@"maxZoom"] doubleValue];
@@ -340,6 +465,7 @@
     }
 
     _pdfView.document = newDocument;
+    _pdfView.enableDataDetectors = _enableDataDetectors;
 
     // 🔥 Reset scaling properly
     if (_preserveZoomOnLayout) {
@@ -381,14 +507,34 @@
 }
 
 - (void)getCurrentPage:(FlutterMethodCall *)call result:(FlutterResult)result {
-    _currentPage = [NSNumber numberWithUnsignedLong:[_pdfView.document indexForPage:_pdfView.currentPage]];
+    PDFDocument *document = _pdfView.document;
+    PDFPage *page = _pdfView.currentPage;
+    const NSUInteger index = document != nil && page != nil
+        ? [document indexForPage:page] : NSNotFound;
+    if (index == NSNotFound || index >= document.pageCount) {
+        result(nil);
+        return;
+    }
+    _currentPage = @(index);
     result(_currentPage);
 }
 
 - (void)setPage:(FlutterMethodCall *)call result:(FlutterResult)result {
     NSDictionary < NSString * , NSNumber * > *arguments = [call arguments];
     NSNumber *page = arguments[@"page"];
-    [_pdfView goToPage:[_pdfView.document pageAtIndex:page.unsignedLongValue]];
+    PDFDocument *document = _pdfView.document;
+    if (![page isKindOfClass:[NSNumber class]] || document == nil ||
+        page.integerValue < 0 || (NSUInteger)page.integerValue >= document.pageCount) {
+        NSLog(@"[PDF_PAGE] rejected index=%@ count=%lu", page, (unsigned long)document.pageCount);
+        result(@(NO));
+        return;
+    }
+    PDFPage *destination = [document pageAtIndex:(NSUInteger)page.integerValue];
+    if (destination == nil) {
+        result(@(NO));
+        return;
+    }
+    [_pdfView goToPage:destination];
     result(@(YES));
 }
 
@@ -403,6 +549,10 @@
 }
 
 - (void)handlePageChanged:(NSNotification *)notification {
+    PDFDocument *document = _pdfView.document;
+    PDFPage *currentPage = _pdfView.currentPage;
+    if (document == nil || currentPage == nil) return;
+
     if (_fitEachPage && _autoSpacing) {
         // PDFKit uses one scale for a continuous document. Recalculate the
         // fit scale when mixed-size merged pages become current, but only when
@@ -419,13 +569,13 @@
         });
     }
 
-    [_controller invokeChannelMethod:@"onPageChanged" arguments:@{
-            @"page": [NSNumber numberWithUnsignedLong:[_pdfView.document indexForPage:_pdfView.currentPage]],
-            @"total": [NSNumber numberWithUnsignedLong:[_pdfView.document pageCount]]}];
+    [_controller invokeChannelMethodFromView:self name:@"onPageChanged" arguments:@{
+            @"page": [NSNumber numberWithUnsignedLong:[document indexForPage:currentPage]],
+            @"total": [NSNumber numberWithUnsignedLong:[document pageCount]]}];
 }
 
 - (void)handleRenderCompleted:(NSNumber *)pages {
-    [_controller invokeChannelMethod:@"onRender" arguments:@{@"pages": pages}];
+    [_controller invokeChannelMethodFromView:self name:@"onRender" arguments:@{@"pages": pages}];
 }
 
 // iOS 11+ (PDFKit)
@@ -437,7 +587,7 @@
 
     // If Flutter wants to handle it, forward and stop here.
     if (_preventLinkNavigation) {
-        [_controller invokeChannelMethod:@"onLinkHandler" arguments:url.absoluteString];
+        [_controller invokeChannelMethodFromView:self name:@"onLinkHandler" arguments:url.absoluteString];
         return;
     }
 
@@ -499,7 +649,7 @@ shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other 
         [self clearTextSelection:^(id value) {}];
         return;
     }
-    [_controller invokeChannelMethod:@"onTap" arguments:@{}];
+    [_controller invokeChannelMethodFromView:self name:@"onTap" arguments:@{}];
 }
 
 @end

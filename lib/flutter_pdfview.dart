@@ -48,6 +48,8 @@ class PDFView extends StatefulWidget {
     this.defaultPage = 0,
     this.fitPolicy = FitPolicy.WIDTH,
     this.preventLinkNavigation = false,
+    this.enableDataDetectors = true,
+    this.retainDocumentViews = false,
     this.backgroundColor,
     this.onTap,
 
@@ -100,6 +102,13 @@ class PDFView extends StatefulWidget {
   @Deprecated("will be removed next version")
   final bool fitEachPage;
   final bool preventLinkNavigation;
+
+  /// iOS: automatically detect phone numbers, dates and addresses in pages.
+  final bool enableDataDetectors;
+
+  /// iOS: keep a separate native viewer for each open file for instant tabs.
+  /// Retained viewers consume memory until their document is closed.
+  final bool retainDocumentViews;
   final Color? backgroundColor;
 
   // NEW: zoom callbacks
@@ -383,7 +392,9 @@ class _CreationParams {
       this.settings,
       this.enableSetZoom,
       this.initialZoom,
-      this.preserveZoomOnLayout});
+      this.preserveZoomOnLayout,
+      this.enableDataDetectors,
+      this.retainDocumentViews});
 
   static _CreationParams fromWidget(PDFView widget) {
     return _CreationParams(
@@ -392,7 +403,9 @@ class _CreationParams {
         settings: _PDFViewSettings.fromWidget(widget),
         enableSetZoom: widget.enableSetZoom,
         initialZoom: widget.initialZoom,
-        preserveZoomOnLayout: widget.preserveZoomOnLayout);
+        preserveZoomOnLayout: widget.preserveZoomOnLayout,
+        enableDataDetectors: widget.enableDataDetectors,
+        retainDocumentViews: widget.retainDocumentViews);
   }
 
   final String? filePath;
@@ -401,6 +414,8 @@ class _CreationParams {
   final bool? enableSetZoom;
   final double? initialZoom;
   final bool? preserveZoomOnLayout;
+  final bool? enableDataDetectors;
+  final bool? retainDocumentViews;
 
   Map<String, dynamic> toMap() {
     final params = <String, dynamic>{
@@ -409,6 +424,8 @@ class _CreationParams {
       'enableSetZoom': enableSetZoom,
       'initialZoom': initialZoom,
       'preserveZoomOnLayout': preserveZoomOnLayout,
+      'enableDataDetectors': enableDataDetectors,
+      'retainDocumentViews': retainDocumentViews,
     };
     params.addAll(settings!.toMap());
     return params;
@@ -516,6 +533,23 @@ class PDFViewController {
     } catch (e) {
       debugPrint('Reload not implemented: $e');
     }
+  }
+
+  /// iOS retained-view mode: select a file without replacing its PDFDocument.
+  Future<bool?> loadDocument(
+    String filePath,
+    int defaultPage, {
+    List<String>? openDocumentPaths,
+  }) async {
+    return _channel.invokeMethod<bool>('loadDocument', <String, dynamic>{
+      'filePath': filePath,
+      'defaultPage': defaultPage,
+      if (openDocumentPaths != null) 'openDocumentPaths': openDocumentPaths,
+    });
+  }
+
+  Future<void> retainDocumentPaths(List<String> paths) async {
+    await _channel.invokeMethod<void>('retainDocumentPaths', {'paths': paths});
   }
 
   Future<void> animateToTop({

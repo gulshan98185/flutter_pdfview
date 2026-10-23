@@ -7,6 +7,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class FLTPDFView;
+
         API_AVAILABLE(ios(11.0))
 @interface FLTPDFViewController : NSObject
 <FlutterPlatformView, PDFViewDelegate, UIGestureRecognizerDelegate>
@@ -17,6 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
         binaryMessenger:(NSObject<FlutterBinaryMessenger>*)messenger;
 
 - (void)invokeChannelMethod:(NSString *)name arguments:(id)args;
+- (void)invokeChannelMethodFromView:(FLTPDFView *)view name:(NSString *)name arguments:(id)args;
 - (UIView*)view;
 
 @property(nonatomic, strong) FlutterMethodChannel *channel;
