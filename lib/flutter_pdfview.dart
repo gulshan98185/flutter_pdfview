@@ -49,6 +49,7 @@ class PDFView extends StatefulWidget {
     this.fitPolicy = FitPolicy.WIDTH,
     this.preventLinkNavigation = false,
     this.enableDataDetectors = true,
+    this.enableTextSelection = true,
     this.retainDocumentViews = false,
     this.backgroundColor,
     this.onTap,
@@ -105,6 +106,10 @@ class PDFView extends StatefulWidget {
 
   /// iOS: automatically detect phone numbers, dates and addresses in pages.
   final bool enableDataDetectors;
+
+  /// iOS: allow native text selection and text-input touch handling.
+  /// Disable for rendering-only previews; scrolling and zoom remain enabled.
+  final bool enableTextSelection;
 
   /// iOS: keep a separate native viewer for each open file for instant tabs.
   /// Retained viewers consume memory until their document is closed.
@@ -394,6 +399,7 @@ class _CreationParams {
       this.initialZoom,
       this.preserveZoomOnLayout,
       this.enableDataDetectors,
+      this.enableTextSelection,
       this.retainDocumentViews});
 
   static _CreationParams fromWidget(PDFView widget) {
@@ -405,6 +411,7 @@ class _CreationParams {
         initialZoom: widget.initialZoom,
         preserveZoomOnLayout: widget.preserveZoomOnLayout,
         enableDataDetectors: widget.enableDataDetectors,
+        enableTextSelection: widget.enableTextSelection,
         retainDocumentViews: widget.retainDocumentViews);
   }
 
@@ -415,6 +422,7 @@ class _CreationParams {
   final double? initialZoom;
   final bool? preserveZoomOnLayout;
   final bool? enableDataDetectors;
+  final bool? enableTextSelection;
   final bool? retainDocumentViews;
 
   Map<String, dynamic> toMap() {
@@ -425,6 +433,7 @@ class _CreationParams {
       'initialZoom': initialZoom,
       'preserveZoomOnLayout': preserveZoomOnLayout,
       'enableDataDetectors': enableDataDetectors,
+      'enableTextSelection': enableTextSelection,
       'retainDocumentViews': retainDocumentViews,
     };
     params.addAll(settings!.toMap());

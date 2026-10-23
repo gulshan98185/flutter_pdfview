@@ -4,6 +4,37 @@
 #import "./include/flutter_pdfview/FlutterPDFView.h"
 #import <math.h>
 
+// Bug: tapping the compressed PDF preview on iOS 26 trapped in
+// Selection::cacheRectsAndTransforms via PDFTextInputView/PDFScannerResult,
+// even with data detectors disabled. Only previews opting out of selection
+// use this subclass; route text-input hits to scrolling instead of scanning.
+@interface FLTPreviewPDFView : PDFView
+@end
+
+@implementation FLTPreviewPDFView
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    UIView *hit = [super hitTest:point withEvent:event];
+    if (hit == nil) return nil;
+
+    for (UIView *view = hit; view != nil && view != self; view = view.superview) {
+        if ([view conformsToProtocol:@protocol(UITextInput)]) {
+            // Keep the touch in the scrolling/zoom gesture hierarchy without
+            // letting UIKit's global keyboard observer query PDF text bounds.
+            for (UIView *ancestor = view.superview;
+                 ancestor != nil && ancestor != self;
+                 ancestor = ancestor.superview) {
+                if ([ancestor isKindOfClass:[UIScrollView class]] &&
+                    ![ancestor conformsToProtocol:@protocol(UITextInput)]) {
+                    return ancestor;
+                }
+            }
+            return self;
+        }
+    }
+    return hit;
+}
+@end
+
 @implementation FLTPDFViewFactory {
     NSObject <FlutterBinaryMessenger> *_messenger;
 }
@@ -234,7 +265,18 @@
     if (self == nil) return nil;
     _controller = controller;
 
-    _pdfView = [[PDFView alloc] initWithFrame:frame];
+    NSNumber *textSelection = args[@"enableTextSelection"];
+    BOOL disableTextSelection = textSelection != nil && !textSelection.boolValue;
+    _pdfView = disableTextSelection
+        ? [[FLTPreviewPDFView alloc] initWithFrame:frame]
+        : [[PDFView alloc] initWithFrame:frame];
+    if (disableTextSelection) {
+        if (@available(iOS 16.0, *)) {
+            // Disable selection gestures; hitTest above also prevents UIKit's
+            // keyboard observer from inspecting the preview's text-input view.
+            _pdfView.inMarkupMode = YES;
+        }
+    }
     _pdfView.delegate = self;
     _pdfView.userInteractionEnabled = YES;
 
