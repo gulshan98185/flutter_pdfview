@@ -251,6 +251,8 @@
     BOOL _defaultPageSet;
     BOOL _preserveZoomOnLayout;
     BOOL _didApplyInitialFit;
+    CGFloat _cachedFitScale;
+    PDFPage *_cachedFitPage;
     CGRect _lastLayoutBounds;
     UIScrollView *_scrollView;
 
@@ -443,7 +445,11 @@
 
 - (void)layoutSubviews {
     [super layoutSubviews];
-    _pdfView.frame = self.bounds;
+    const BOOL wasAtFit = !_didApplyInitialFit ||
+        _pdfView.scaleFactor <= _pdfView.minScaleFactor * 1.05;
+    if (!CGRectEqualToRect(_pdfView.frame, self.bounds)) {
+        _pdfView.frame = self.bounds;
+    }
 
     if (_preserveZoomOnLayout) {
         const BOOL pinchInProgress = _scrollView != nil &&
@@ -451,23 +457,23 @@
              _scrollView.pinchGestureRecognizer.state == UIGestureRecognizerStateChanged);
         const BOOL boundsChanged = !CGRectEqualToRect(_lastLayoutBounds, self.bounds);
         const BOOL hasUsableBounds = self.bounds.size.width > 0.0 && self.bounds.size.height > 0.0;
-        const CGFloat fit = hasUsableBounds ? _pdfView.scaleFactorForSizeToFit : 0.0;
-        const BOOL validFit = isfinite(fit) && fit > 0.0;
-
-        NSLog(@"[PDF_ZOOM_TRACE][HOME_PDF_EDITOR] bounds=%@ fit=%.6f scale=%.6f min=%.6f max=%.6f pinch=%d changed=%d",
-              NSStringFromCGRect(self.bounds), fit, _pdfView.scaleFactor,
-              _pdfView.minScaleFactor, _pdfView.maxScaleFactor,
-              pinchInProgress, boundsChanged);
-
-        if (validFit && !pinchInProgress) {
-            _pdfView.minScaleFactor = fit;
-            _pdfView.maxScaleFactor = MAX(4.0, fit);
-            if (_autoSpacing && (!_didApplyInitialFit || boundsChanged)) {
-                _pdfView.scaleFactor = fit;
-                _didApplyInitialFit = true;
+        // PDFKit's fit query can traverse the geometry of the entire document.
+        // A pinch generates many layouts without resizing the viewport. Query
+        // only for an initial fit or a real resize, never during the gesture.
+        if (hasUsableBounds && !pinchInProgress &&
+            (!_didApplyInitialFit || boundsChanged)) {
+            const CGFloat fit = _pdfView.scaleFactorForSizeToFit;
+            if (isfinite(fit) && fit > 0.0) {
+                _cachedFitScale = fit;
+                _cachedFitPage = _pdfView.currentPage;
+                _pdfView.minScaleFactor = fit;
+                _pdfView.maxScaleFactor = MAX(4.0, fit);
+                if (_autoSpacing && wasAtFit) _pdfView.scaleFactor = fit;
+                _didApplyInitialFit = YES;
+                // Leave a resize pending if it occurs while the user pinches.
+                _lastLayoutBounds = self.bounds;
             }
         }
-        _lastLayoutBounds = self.bounds;
     } else {
         _pdfView.minScaleFactor = _pdfView.scaleFactorForSizeToFit;
         _pdfView.maxScaleFactor = 4.0;
@@ -513,6 +519,8 @@
     if (_preserveZoomOnLayout) {
         const CGFloat fit = _pdfView.scaleFactorForSizeToFit;
         if (isfinite(fit) && fit > 0.0) {
+            _cachedFitScale = fit;
+            _cachedFitPage = _pdfView.currentPage;
             _pdfView.minScaleFactor = fit;
             _pdfView.scaleFactor = fit;
             _didApplyInitialFit = true;
@@ -601,13 +609,19 @@
         // the user was already at the normal fit scale so manual zoom is kept.
         const CGFloat previousFit = _pdfView.minScaleFactor;
         const BOOL wasAtFit = _pdfView.scaleFactor <= previousFit * 1.05;
-        dispatch_async(dispatch_get_main_queue(), ^{
+        if (wasAtFit) dispatch_async(dispatch_get_main_queue(), ^{
+            // Page changes queued before a pinch must not reset manual zoom.
+            if (self->_pdfView.currentPage != currentPage ||
+                self->_pdfView.scaleFactor > previousFit * 1.05) return;
+            const UIGestureRecognizerState pinch = self->_scrollView.pinchGestureRecognizer.state;
+            if (pinch == UIGestureRecognizerStateBegan ||
+                pinch == UIGestureRecognizerStateChanged) return;
             const CGFloat pageFit = self->_pdfView.scaleFactorForSizeToFit;
-            if (pageFit <= 0) return;
-            if (wasAtFit) {
-                self->_pdfView.minScaleFactor = pageFit;
-                self->_pdfView.scaleFactor = pageFit;
-            }
+            if (!isfinite(pageFit) || pageFit <= 0) return;
+            self->_cachedFitScale = pageFit;
+            self->_cachedFitPage = self->_pdfView.currentPage;
+            self->_pdfView.minScaleFactor = pageFit;
+            self->_pdfView.scaleFactor = pageFit;
         });
     }
 
@@ -657,7 +671,17 @@ shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other 
 - (void)onDoubleTap:(UITapGestureRecognizer *)recognizer {
     if (recognizer.state != UIGestureRecognizerStateEnded) return;
 
-    const CGFloat fit = _pdfView.scaleFactorForSizeToFit;
+    // Reuse the fit established by layout/page changes. Recomputing it on
+    // every double tap is particularly expensive for very large documents.
+    // A manually zoomed user can scroll onto a differently sized page. Refresh
+    // once for that page so double-tap still returns to its own normal fit.
+    const CGFloat fit = _preserveZoomOnLayout && _cachedFitScale > 0.0 &&
+        _cachedFitPage == _pdfView.currentPage
+        ? _cachedFitScale : _pdfView.scaleFactorForSizeToFit;
+    if (_preserveZoomOnLayout && isfinite(fit) && fit > 0.0) {
+        _cachedFitScale = fit;
+        _cachedFitPage = _pdfView.currentPage;
+    }
     const CGFloat maxZ = _pdfView.maxScaleFactor;
     const CGFloat target = (_pdfView.scaleFactor < fit * 1.5) ? MIN(fit * 2.0, maxZ) : fit;
 
